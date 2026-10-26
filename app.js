@@ -210,26 +210,56 @@ const QUOTES = [
     glow2: "#FFD700"
   },
 
-  // Elon Musk (Tech Architecture / Engineering First Principles)
+  // Elon Musk (Tech Architecture / Relentless Execution)
   {
-    text: "Boil things down to their most fundamental truths, reason up from there, and assess whether what you're doing is physically possible.",
+    text: "Work like hell. Put in 80 to 100 hour weeks every week. This improves the odds of success. If other people are putting in 40-hour work weeks and you're putting in 100-hour work weeks, even if you're doing the same thing, you will achieve in 4 months what it takes them a year to achieve.",
     author: "Elon Musk",
     title: "CEO, Tesla · SpaceX · xAI",
-    company: "xAI / TESLA",
+    company: "TESLA / SPACEX / xAI",
+    emoji: "🚀",
+    tag: "musk",
+    glow: "#E82127",
+    glow2: "#FF9900"
+  },
+  {
+    text: "Think until your brain hurts. When you really think hard about something until it hurts, that's when you start solving the problems other people thought were impossible.",
+    author: "Elon Musk",
+    title: "CEO, Tesla · SpaceX · xAI",
+    company: "TESLA / SPACEX / xAI",
     emoji: "🚀",
     tag: "musk",
     glow: "#E82127",
     glow2: "#6C63FF"
   },
   {
-    text: "I think it's very important to have a feedback loop, where you're constantly thinking about what you've done and how you could be doing it better.",
+    text: "Boil things down to their most fundamental truths, reason up from there, and assess whether what you're doing is physically possible. Never reason by analogy.",
     author: "Elon Musk",
     title: "CEO, Tesla · SpaceX · xAI",
-    company: "xAI / TESLA",
+    company: "TESLA / SPACEX / xAI",
     emoji: "🚀",
     tag: "musk",
     glow: "#E82127",
     glow2: "#00E5FF"
+  },
+  {
+    text: "Being an entrepreneur is like eating glass and staring into the abyss of death. You have to have a high pain threshold and relentless obsession.",
+    author: "Elon Musk",
+    title: "CEO, Tesla · SpaceX · xAI",
+    company: "TESLA / SPACEX / xAI",
+    emoji: "🚀",
+    tag: "musk",
+    glow: "#E82127",
+    glow2: "#FF3366"
+  },
+  {
+    text: "I think it's very important to have a feedback loop, where you're constantly thinking about what you've done and how you could be doing it better.",
+    author: "Elon Musk",
+    title: "CEO, Tesla · SpaceX · xAI",
+    company: "TESLA / SPACEX / xAI",
+    emoji: "🚀",
+    tag: "musk",
+    glow: "#E82127",
+    glow2: "#76B900"
   },
 
   // Computing Legends
@@ -319,6 +349,12 @@ const AI_RESPONSES = {
     "What's on your mind? Tell me what you're struggling with and we'll figure it out together.",
     "Break it down. What's the ONE thing that would move the needle most right now?",
     "You've got this. I'm here to help you think it through. What's going on?",
+  ],
+  musk: [
+    "Elon Musk mode activated: 'Work like hell. Put in 80 to 100 hour weeks every week. If someone works 40 hours and you work 100, you achieve in 4 months what takes them a year.' Outwork everyone. 🚀",
+    "Elon Musk: 'Think until your brain hurts. When you really think hard about something until it hurts, that's when you start solving the problems other people thought were impossible.' 🧠💥",
+    "Elon Musk: 'Boil things down to the most fundamental truths and reason up from there.' Don't copy others — what is the bedrock physics of your problem?",
+    "Elon Musk: 'If something is important enough, you do it even if the odds are not in your favor.' Stop overthinking, start executing.",
   ],
 };
 
@@ -1119,7 +1155,8 @@ function sendToAI() {
   // Choose response
   const lower = msg.toLowerCase();
   let pool;
-  if (/skip|skipped|miss|missed/.test(lower))          pool = AI_RESPONSES.skip;
+  if (/elon|musk|100 hour|brain hurt|outsmart|outwork/.test(lower)) pool = AI_RESPONSES.musk;
+  else if (/skip|skipped|miss|missed/.test(lower))          pool = AI_RESPONSES.skip;
   else if (/lazy|tired|can't|cant|don't|dont/.test(lower)) pool = AI_RESPONSES.lazy;
   else if (/procrastinat/.test(lower))                  pool = AI_RESPONSES.procrastinate;
   else if (/motivat|inspire|push|goal/.test(lower))     pool = AI_RESPONSES.motivation;
