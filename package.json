@@ -1,0 +1,14 @@
+{
+  "name": "sloth-motivate",
+  "version": "1.0.0",
+  "description": "A local productivity workspace with separate page URLs.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test tests/app.test.cjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

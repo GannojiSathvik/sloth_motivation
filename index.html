@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SlothMotivate — Small steps. Real progress.</title>
+  <meta name="description" content="Make room for what matters. Plan your day, find your focus, and build steady progress at your own pace." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 5h2m4 0h2"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5c-3-2-7-2-10-1v15c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1v15"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 3v17h17M8 15l4-5 4 2 5-7"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6L12 3Z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3c1 5-4 5-4 9 0 1 1 2 2 2-1-3 3-4 4-7 4 4 6 7 4 11-2 4-10 4-12 0C3 13 8 9 12 3Z"/></symbol>
+  <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 3C9 2 3 7 5 14s14 8 15-11ZM4 21l11-11"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+</defs></svg>
+<aside class="sidebar" id="sidebar">
+  <a class="sidebar-brand" href="/" data-page="dashboard" aria-label="SlothMotivate home">
+    <span class="brand-icon"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M5 20C5 8 14 5 20 5s15 3 15 15-7 15-15 15S5 32 5 20Z" fill="currentColor"/><path d="M9 19c0-7 8-8 11-3 3-5 11-4 11 3 0 6-6 11-11 11S9 25 9 19Z" fill="#17251e"/><path d="m12 19 5 3m11-3-5 3" stroke="#b2e8c6" stroke-width="3" stroke-linecap="round"/><path d="M17 26q3 2 6 0" stroke="#b2e8c6" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+    <span class="brand-name">sloth<span>motivate</span><small>SMALL STEPS. BIG SHIFTS.</small></span>
+  </a>
+  <div class="workspace-label">YOUR WORKSPACE</div>
+  <nav class="sidebar-nav" aria-label="Main navigation">
+    <a class="nav-item active" data-page="dashboard" href="/"><svg class="icon"><use href="#i-grid"/></svg><span>Overview</span><span class="nav-active-dot"></span></a>
+    <a class="nav-item" data-page="timetable" href="/timetable"><svg class="icon"><use href="#i-calendar"/></svg><span>Timetable</span></a>
+    <a class="nav-item" data-page="journal" href="/journal"><svg class="icon"><use href="#i-book"/></svg><span>Journal</span></a>
+    <a class="nav-item" data-page="progress" href="/progress"><svg class="icon"><use href="#i-chart"/></svg><span>My progress</span></a>
+    <a class="nav-item" data-page="quotes" href="/fuel"><svg class="icon"><use href="#i-spark"/></svg><span>Daily fuel</span><span class="nav-new">NEW</span></a>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="sidebar-note"><svg class="icon"><use href="#i-leaf"/></svg><p>A little better,<br>every single day.</p><span>You’re growing at your own pace.</span></div>
+    <div class="sidebar-stats"><div class="stat-mini"><span class="stat-mini-label">Today's progress</span><span class="stat-mini-value" id="sidebar-score">0%</span></div><div class="sidebar-progress"><span id="sidebar-progress-fill"></span></div><div class="streak-display"><svg class="icon"><use href="#i-flame"/></svg><span id="streak-count">0</span><span class="streak-label">day streak</span></div></div>
+    <div class="local-profile"><div class="profile-avatar">S</div><div>My workspace<small><span></span> Saved on this device</small></div><svg class="icon"><use href="#i-leaf"/></svg></div>
+  </div>
+</aside>
+<main class="main-content">
+  <header class="topbar">
+    <div class="breadcrumb">My workspace <span>/</span> <strong id="page-breadcrumb">Overview</strong></div>
+    <div class="topbar-right"><div class="clock-display"><svg class="icon"><use href="#i-clock"/></svg><span id="live-time" class="live-time"></span></div><span class="topbar-divider"></span><button class="btn-ai" onclick="openAIMotivator()"><svg class="icon"><use href="#i-spark"/></svg> Your coach</button></div>
+  </header>
+  <div class="quote-ticker" hidden><div id="quote-ticker-text"></div></div>
+  <div class="tab-content">
+    <section class="tab-panel active" id="tab-dashboard">
+      <div class="dashboard-heading"><div><div class="eyebrow"><span class="little-sun">☼</span> A FRESH CHANCE TO MAKE IT COUNT</div><h1>Small steps. <span>Real progress.</span></h1><p>You don’t have to do it all. Just the next right thing.</p></div><button class="btn btn-primary" onclick="openAddTask()"><svg class="icon"><use href="#i-plus"/></svg> Plan my day</button></div>
+      <div class="day-heading"><div class="section-label">Your day at a glance</div><span id="live-date" class="live-date"></span></div>
+      <div class="metrics-grid">
+        <div class="metric-card"><div class="metric-top"><span>Tasks completed</span><svg class="icon metric-icon mint"><use href="#i-check"/></svg></div><div class="metric-value"><strong id="done-count">0</strong><span>/ <span id="task-total">0</span></span></div><div class="metric-foot"><span class="mint-text" id="completion-note">A clean slate</span><span>one step at a time</span></div><div class="metric-track"><span id="completion-fill"></span></div></div>
+        <div class="metric-card"><div class="metric-top"><span>Focus time</span><svg class="icon metric-icon lavender"><use href="#i-clock"/></svg></div><div class="metric-value"><strong id="daily-focus">0</strong><span id="daily-focus-unit">min</span></div><div class="metric-foot"><span class="lavender-text">Time well spent</span><span>on what matters</span></div><div class="mini-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+        <div class="metric-card"><div class="metric-top"><span>Current streak</span><svg class="icon metric-icon peach"><use href="#i-flame"/></svg></div><div class="metric-value"><strong id="dashboard-streak">0</strong><span>days</span></div><div class="metric-foot"><span class="peach-text" id="streak-note">Your next chapter</span></div><div class="streak-week" id="streak-week"></div></div>
+        <div class="metric-card"><div class="metric-top"><span>Daily completion</span><svg class="icon metric-icon blue"><use href="#i-chart"/></svg></div><div class="completion-summary"><div><div class="metric-value"><strong id="ring-pct">0%</strong></div><div class="metric-foot"><span id="pending-count">0</span> pending <span class="meta-dot">·</span><span id="procrastinated-count">0</span> skipped</div></div><svg class="progress-ring" viewBox="0 0 200 200" aria-label="Daily completion"><circle class="ring-bg" cx="100" cy="100" r="80"/><circle class="ring-fill" id="ring-fill" cx="100" cy="100" r="80" stroke-dasharray="502" stroke-dashoffset="502"/></svg></div></div>
+      </div>
+      <div class="dashboard-grid">
+        <div class="card card-current">
+          <div class="focus-copy"><div class="current-tag"><span class="pulse-dot"></span> MAKE SPACE FOR FOCUS</div><h2 id="current-task-title">One thing at a time.</h2><p id="current-task-desc">Give yourself 25 quiet minutes. A small start can change the whole day.</p><div class="current-block-pill" id="current-block-pill"><svg class="icon"><use href="#i-clock"/></svg><span id="current-block-label">Your next small step starts here</span></div><div class="current-links" id="current-links"></div><div class="focus-buttons"><button class="btn btn-focus" id="focus-toggle" onclick="toggleFocus()"><span id="focus-play-icon">▶</span><span id="focus-button-label">Start focus session</span></button><button class="icon-button" onclick="resetFocus()" aria-label="Reset focus timer" title="Reset timer">↺</button></div><div class="current-actions" id="current-actions" hidden><button class="text-button" onclick="markCurrentDone()">✓ Mark done</button><button class="text-button" onclick="markCurrentSkipped()">Skip this block</button></div></div>
+          <div class="focus-dial"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="orbit-star star-one">✦</div><div class="orbit-star star-two">✧</div><div class="timer-ring"><svg viewBox="0 0 240 240" aria-hidden="true"><circle class="timer-track" cx="120" cy="120" r="106"/><circle id="focus-ring" class="timer-progress" cx="120" cy="120" r="106"/></svg><div class="timer-center"><svg class="icon"><use href="#i-leaf"/></svg><span id="focus-time" role="timer" aria-label="Focus time remaining">25:00</span><span id="focus-state">A MOMENT FOR YOU</span></div></div><span class="focus-dial-note">Less noise. More intention.</span></div>
+          <div class="focus-bottom"><svg class="icon"><use href="#i-spark"/></svg><span id="focus-tip">The hardest part is starting. You’re already here.</span><span>25 MIN FOCUS</span></div>
+        </div>
+        <div class="card card-upcoming"><div class="card-heading"><h2 class="card-title">The day ahead</h2><a class="text-button" data-page="timetable" href="/timetable">View all <span>↗</span></a></div><p class="card-description">A little structure goes a long way.</p><div id="upcoming-list" class="upcoming-list"></div><button class="add-block-button" onclick="openAddTask()"><svg class="icon"><use href="#i-plus"/></svg> Add a time block</button></div>
+        <div class="card card-heatmap"><div class="card-heading"><h2 class="card-title">Showing up adds up.</h2><span class="small-pill">Last 30 days</span></div><p class="card-description">Every little square is a step forward.</p><div class="heatmap-grid" id="heatmap-grid"></div><div class="heatmap-footer"><span><strong id="active-days">0</strong> active days <span class="meta-dot">·</span> Keep the momentum going</span><div class="heatmap-legend"><span>Less</span><span class="hm-dot hm-0"></span><span class="hm-dot hm-1"></span><span class="hm-dot hm-2"></span><span class="hm-dot hm-3"></span><span class="hm-dot hm-4"></span><span>More</span></div></div></div>
+        <div class="card card-quote-main" id="daily-quote-card"><div class="card-heading"><span class="eyebrow">A LITTLE DAILY FUEL</span><span class="quote-mark">“</span></div><blockquote class="main-quote" id="main-quote-text">Loading inspiration…</blockquote><div class="quote-footer"><cite class="main-quote-author" id="main-quote-author"></cite><button class="btn-next-quote" onclick="nextQuote()" aria-label="Next quote" title="Next quote">↗</button></div></div>
+      </div>
+      <footer class="dashboard-footer"><span><svg class="icon"><use href="#i-leaf"/></svg> Built for progress, at your pace.</span><button class="text-button" onclick="openJournalEntry()">Take a moment to reflect <span>↗</span></button></footer>
+    </section>
+
+    <!-- TIMETABLE -->
+    <section class="tab-panel" id="tab-timetable">
+      <div class="timetable-header">
+        <h1 class="page-title">Your daily rhythm</h1>
+        <div class="timetable-controls">
+          <button class="btn btn-primary" onclick="openAddTask()">+ Add Time Block</button>
+          <input type="date" class="date-picker" id="timetable-date" aria-label="Timetable date" onchange="renderTimetable()" />
+        </div>
+      </div>
+      <div class="timetable-wrap">
+        <div class="time-axis" id="time-axis"></div>
+        <div class="blocks-wrap" id="blocks-wrap"></div>
+      </div>
+    </section>
+
+    <!-- JOURNAL -->
+    <section class="tab-panel" id="tab-journal">
+      <div class="journal-header">
+        <h1 class="page-title">A space to reflect</h1>
+        <div class="journal-controls">
+          <input type="date" class="date-picker" id="journal-date" aria-label="Journal date" onchange="renderJournal()" />
+          <button class="btn btn-primary" onclick="openJournalEntry()">+ New Entry</button>
+        </div>
+      </div>
+      <div class="journal-timeline" id="journal-timeline">
+        <div class="empty-state">No journal entries yet. Start logging your hours!</div>
+      </div>
+    </section>
+
+    <!-- PROGRESS -->
+    <section class="tab-panel" id="tab-progress">
+      <h1 class="page-title">Look how far you’ve come</h1>
+      <div class="progress-grid">
+        <div class="card">
+          <h2 class="card-title">Your goals</h2>
+          <div id="goals-list"></div>
+          <button class="btn btn-primary mt-1" onclick="openAddGoal()">+ Add Goal</button>
+        </div>
+        <div class="card">
+          <h2 class="card-title">This week</h2>
+          <div class="week-bars" id="week-bars"></div>
+        </div>
+        <div class="card card-compete">
+          <h2 class="card-title">Your daily balance</h2>
+          <p class="compete-sub">Completed time today, across the things that matter.</p>
+          <div class="compare-bars" id="compare-bars"></div>
+        </div>
+        <div class="card">
+          <h2 class="card-title">Time invested</h2>
+          <div class="time-invested-wrap">
+            <div class="time-stat"><span class="time-big" id="total-hours">0h</span><small>Total logged</small></div>
+            <div class="time-stat"><span class="time-big" id="focus-hours">0h</span><small>Deep focus</small></div>
+            <div class="time-stat"><span class="time-big" id="wasted-hours">0h</span><small>Skipped</small></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- QUOTES/FUEL — Full-screen Grok-style slideshow -->
+    <section class="tab-panel fuel-panel" id="tab-quotes">
+      <!-- Category filter pills -->
+      <div class="fuel-filters" id="fuel-filters">
+        <button class="fuel-pill active" onclick="fuelFilter('all',this)">All</button>
+        <button class="fuel-pill" onclick="fuelFilter('jobs',this)">🍎 Jobs</button>
+        <button class="fuel-pill" onclick="fuelFilter('gates',this)">🪟 Gates</button>
+        <button class="fuel-pill" onclick="fuelFilter('bezos',this)">📦 Bezos</button>
+        <button class="fuel-pill" onclick="fuelFilter('musk',this)">🚀 Musk</button>
+        <button class="fuel-pill" onclick="fuelFilter('zuck',this)">🔵 Zuck</button>
+        <button class="fuel-pill" onclick="fuelFilter('jensen',this)">🟢 Jensen</button>
+        <button class="fuel-pill" onclick="fuelFilter('altman',this)">🤖 Altman</button>
+        <button class="fuel-pill" onclick="fuelFilter('other',this)">✨ Legends</button>
+      </div>
+
+      <!-- Slide stage -->
+      <div class="fuel-stage" id="fuel-stage">
+        <div class="fuel-bg-glow" id="fuel-glow"></div>
+
+        <!-- Slide content -->
+        <div class="fuel-slide" id="fuel-slide">
+          <div class="fuel-slide-inner">
+            <div class="fuel-label" id="fuel-label">LOADING</div>
+            <blockquote class="fuel-quote" id="fuel-quote"></blockquote>
+            <div class="fuel-author-row">
+              <div class="fuel-avatar" id="fuel-avatar"></div>
+              <div class="fuel-author-info">
+                <span class="fuel-author-name" id="fuel-author-name"></span>
+                <span class="fuel-author-title" id="fuel-author-title"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Nav arrows -->
+        <button class="fuel-arrow fuel-prev" onclick="fuelPrev()" title="Previous (←)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <button class="fuel-arrow fuel-next" onclick="fuelNext()" title="Next (→)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+
+        <!-- Progress dots -->
+        <div class="fuel-dots" id="fuel-dots"></div>
+
+        <!-- Slide counter -->
+        <div class="fuel-counter" id="fuel-counter">1 / 1</div>
+
+        <!-- Auto-play bar -->
+        <div class="fuel-progress-bar"><div class="fuel-progress-fill" id="fuel-progress-fill"></div></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-add-task" onclick="closeModal('modal-add-task')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Add Time Block</h2>
+      <button class="modal-close" onclick="closeModal('modal-add-task')">✕</button>
+    </div>
+    <div class="modal-body">
+      <label>Task Name</label>
+      <input type="text" id="task-name" class="input" placeholder="e.g. Deep work — DSA practice" />
+      <label>Description</label>
+      <textarea id="task-desc" class="input textarea" rows="2" placeholder="What exactly will you do?"></textarea>
+      <div class="form-row">
+        <div><label>Start Time</label><input type="time" id="task-start" class="input" /></div>
+        <div><label>End Time</label><input type="time" id="task-end" class="input" /></div>
+      </div>
+      <label>Category</label>
+      <select id="task-category" class="input">
+        <option value="focus">🧠 Deep Focus</option>
+        <option value="learning">📚 Learning</option>
+        <option value="exercise">💪 Exercise</option>
+        <option value="break">☕ Break</option>
+        <option value="social">👥 Social</option>
+        <option value="admin">📋 Admin / Planning</option>
+        <option value="other">📌 Other</option>
+      </select>
+      <label>Links / Resources (one per line)</label>
+      <textarea id="task-links" class="input textarea" rows="3" placeholder="https://leetcode.com/&#10;https://codeforces.com/"></textarea>
+      <label>Date</label>
+      <input type="date" id="task-date" class="input" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-task')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTask()">Save Block</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-journal" onclick="closeModal('modal-journal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>A moment to reflect</h2>
+      <button class="modal-close" onclick="closeModal('modal-journal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div><label>Time</label><input type="time" id="journal-time" class="input" /></div>
+        <div><label>Date</label><input type="date" id="journal-entry-date" class="input" /></div>
+      </div>
+      <label>What did you actually do?</label>
+      <textarea id="journal-text" class="input textarea" rows="4" placeholder="Be honest. What happened in this hour?"></textarea>
+      <label>Worth it? Rate the hour</label>
+      <div class="rating-row">
+        <button class="rating-btn" data-val="1" onclick="setRating(1)">😴 Wasted</button>
+        <button class="rating-btn" data-val="2" onclick="setRating(2)">😐 Meh</button>
+        <button class="rating-btn" data-val="3" onclick="setRating(3)">👍 Good</button>
+        <button class="rating-btn" data-val="4" onclick="setRating(4)">🔥 Great</button>
+        <button class="rating-btn" data-val="5" onclick="setRating(5)">🚀 Elite</button>
+      </div>
+      <input type="hidden" id="journal-rating" value="3" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-journal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveJournalEntry()">Log It</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-add-goal" onclick="closeModal('modal-add-goal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Set an intention</h2>
+      <button class="modal-close" onclick="closeModal('modal-add-goal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <label>Goal</label>
+      <input type="text" id="goal-name" class="input" placeholder="e.g. Solve 200 LeetCode problems" />
+      <label>Target (number)</label>
+      <input type="number" id="goal-target" class="input" placeholder="200" />
+      <label>Current Progress</label>
+      <input type="number" id="goal-current" class="input" placeholder="0" />
+      <label>Unit</label>
+      <input type="text" id="goal-unit" class="input" placeholder="problems / pages / hours" />
+      <label>Deadline</label>
+      <input type="date" id="goal-deadline" class="input" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-goal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGoal()">Add Goal</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-ai" onclick="closeModal('modal-ai')">
+  <div class="modal modal-ai" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Your motivation coach</h2>
+      <button class="modal-close" onclick="closeModal('modal-ai')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ai-chat" id="ai-chat">
+        <div class="ai-msg ai-msg-bot">
+          <div class="ai-avatar">🤖</div>
+          <div class="ai-bubble">A little encouragement for your next step. Tell me what’s on your mind. I use a collection of built-in prompts to help you get moving.</div>
+        </div>
+      </div>
+      <div class="ai-input-row">
+        <input type="text" id="ai-input" class="input" placeholder="Tell me what happened..." onkeydown="if(event.key==='Enter') sendToAI()" />
+        <button class="btn btn-primary" onclick="sendToAI()">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="/app.js"></script>
+</body>
+</html>
