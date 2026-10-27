@@ -46,3 +46,22 @@ test('network failure preserves local dirty work and allows retry', async () => 
   assert.equal(c.run('syncing'), false);
   assert.match(c.element('cloud-status').textContent, /Saved locally/);
 });
+
+test('Google sign-in redirects back to this app and requests only Google', async () => {
+  const c = cloud();
+  c.run(`window.location = { origin: 'http://127.0.0.1:4174' }; var oauthInput;
+    client = { auth: { signInWithOAuth: async input => { oauthInput = input; return {error:null}; } } };
+    fetch = async url => ({ ok:true, json:async () => url === '/api/config' ? {supabaseUrl:'https://example.supabase.co',supabasePublishableKey:'public'} : {external:{google:true}} });`);
+  await c.run('signIn()');
+  assert.equal(c.run('oauthInput.provider'), 'google');
+  assert.equal(c.run('oauthInput.options.redirectTo'), 'http://127.0.0.1:4174/account');
+});
+
+test('disabled Google provider shows an actionable message without redirecting', async () => {
+  const c = cloud();
+  c.run(`client = { auth: { signInWithOAuth: () => {throw new Error('Must not redirect');} } };
+    fetch = async url => ({ ok:true, json:async () => url === '/api/config' ? {supabaseUrl:'https://example.supabase.co',supabasePublishableKey:'public'} : {external:{google:false}} });`);
+  await c.run('signIn()');
+  assert.match(c.element('account-message').textContent, /setup is not finished/);
+  assert.equal(c.element('account-google').disabled, false);
+});

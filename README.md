@@ -71,7 +71,7 @@ Point your favorite web browser to:
 
 1. Choose a Supabase project and apply `supabase/schema.sql` once. The table is named `sloth_workspaces` to keep this app separate from other apps.
 2. Add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` to `.env`, then restart the server. Use a publishable key, never a service-role key.
-3. Open **Cloud account**, create an email/password account, confirm the email if required, and sign in. On first sign-in to an empty workspace, this device's local work is copied to your account.
+3. Enable Google under Supabase Authentication → Sign In / Providers using a Google OAuth Web client ID and secret. Add the app’s `/account` URL to Supabase’s redirect allow list. Open **Cloud account** and choose **Continue with Google**. On first sign-in to an empty workspace, this device's local work is copied to your account.
 
 Row-level security restricts every row to its owner. Changes save automatically with version checks to prevent overwriting changes from another device. If there is a conflict, the account page offers “Load latest cloud version,” which backs up the local copy first. Offline work remains on the device; use **Sync now** after reconnecting. Browser storage is not encrypted, so sign out on shared devices and use separate browser profiles.
 
@@ -105,3 +105,9 @@ Covers timer recovery, pauses, midnight boundaries, saved reflections, planning 
 ## 📜 License
 
 ISC © [Gannoji Sathvik](https://github.com/GannojiSathvik) — Free to use, adapt, and chill with.
+
+### Google sign-in configuration
+
+Create a Web application OAuth client in Google Auth Platform. Its authorized redirect URI for this project is `https://tpxutrqowbufwztpzori.supabase.co/auth/v1/callback`. Save the client ID and secret in Supabase’s Google provider settings, never in frontend code. Use only the basic openid/email/profile scopes. If the Google app is in Testing, add your Google account as a test user.
+
+In Supabase Authentication → URL Configuration, allow `http://127.0.0.1:4174/account`, `http://localhost:4174/account`, and the exact deployed HTTPS `/account` URL. Set Site URL to the deployed site when available. The browser uses PKCE and returns to the same app origin. Google sign-in must finish in the browser where it started.

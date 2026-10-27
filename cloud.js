@@ -117,26 +117,27 @@ async function reloadCloud() {
   localStorage.removeItem(`sm_cloud_dirty:${userId}`);
   ready = true; status('Saved to Supabase', 'Latest cloud version loaded. Your previous local copy was backed up on this device.');
 }
-function credentials() {
-  const form = document.getElementById('account-form');
-  if (!form.reportValidity()) return null;
-  return { email: document.getElementById('account-email').value.trim(), password: document.getElementById('account-password').value };
-}
-async function authenticate(create) {
-  if (document.getElementById('account-signin').disabled) return;
-  if (!client) { status('Local mode', 'Supabase is not configured yet. Your work is still saved locally.'); return; }
-  if (hooks.hasActiveWork()) { status('Local mode', 'Finish and save your current task before switching accounts.'); return; }
-  const input = credentials(); if (!input) return;
-  document.getElementById('account-signin').disabled = true;
-  document.getElementById('account-signup').disabled = true;
-  status('Connecting…', create ? 'Creating your private account…' : 'Signing in…');
+async function signIn() {
+  const button = document.getElementById('account-google');
+  if (button.disabled) return;
+  if (!client) { status('Local mode', 'Cloud sign-in is not connected yet. Your work is saved on this device.'); return; }
+  if (hooks.hasActiveWork()) { status('Saved locally', 'Finish and save your current task before signing in.'); return; }
+  button.disabled = true;
+  status('Connecting…', 'Opening Google sign-in…');
   try {
-    const { data, error } = create ? await client.auth.signUp(input) : await client.auth.signInWithPassword(input);
-    if (error) { status('Sign-in needs attention', error.message); return; }
-    document.getElementById('account-password').value = '';
-    if (create && !data.session) status('Check your email', 'Confirm your email using the message from Supabase, then return here and sign in.');
-  } catch { status('Sign-in unavailable', 'Could not connect. Please check your connection and try again.');
-  } finally { document.getElementById('account-signin').disabled = false; document.getElementById('account-signup').disabled = false; }
+    const config = await (await fetch('/api/config')).json();
+    const response = await fetch(`${config.supabaseUrl}/auth/v1/settings`, { headers: { apikey: config.supabasePublishableKey } });
+    if (!response.ok) throw new Error('Could not check sign-in availability. Please try again.');
+    const settings = await response.json();
+    if (!settings.external?.google) throw new Error('Google sign-in setup is not finished yet. Your work is still saved on this device.');
+    const { error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/account` }
+    });
+    if (error) throw error;
+  } catch (error) {
+    status('Sign-in needs attention', error.message || 'Could not connect to Google. Please try again.');
+  } finally { button.disabled = false; }
 }
 async function signOut() {
   if (hooks.hasActiveWork()) { status('Saved locally', 'Finish and save your current task before signing out.'); return; }
@@ -151,7 +152,7 @@ async function init(callbacks) {
     const response = await fetch('/api/config');
     const config = await response.json();
     if (!config.supabaseUrl || !config.supabasePublishableKey) { status('Saved on this device', 'Cloud storage is being connected. You can keep working locally for now.'); return; }
-    client = createClient(config.supabaseUrl, config.supabasePublishableKey);
+    client = createClient(config.supabaseUrl, config.supabasePublishableKey, { auth: { flowType: 'pkce', detectSessionInUrl: true } });
     client.auth.onAuthStateChange((event, session) => {
       if (['INITIAL_SESSION','SIGNED_IN','SIGNED_OUT'].includes(event)) setTimeout(() => hydrate(session).catch(() => status('Saved locally', 'Could not connect to cloud storage. Please try again.')), 0);
     });
@@ -163,4 +164,4 @@ async function getAccessToken() {
   const { data } = await client.auth.getSession();
   return data.session?.access_token || null;
 }
-window.cloud = { getAccessToken, init, queueSave, syncNow, reloadCloud, signIn: () => authenticate(false), signUp: () => authenticate(true), signOut };
+window.cloud = { getAccessToken, init, queueSave, syncNow, reloadCloud, signIn, signOut };
