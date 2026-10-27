@@ -34,7 +34,6 @@
   <nav class="sidebar-nav" aria-label="Main navigation">
     <a class="nav-item active" data-page="dashboard" href="/"><svg class="icon"><use href="#i-grid"/></svg><span>Today</span><span class="nav-active-dot"></span></a>
     <a class="nav-item" data-page="timetable" href="/timetable"><svg class="icon"><use href="#i-calendar"/></svg><span>Timetable</span></a>
-    <a class="nav-item" data-page="todos" href="/todos"><svg class="icon"><use href="#i-book"/></svg><span>To-do & reminders</span></a>
     <a class="nav-item" data-page="journal" href="/journal"><svg class="icon"><use href="#i-book"/></svg><span>Journal</span></a>
     <a class="nav-item" data-page="progress" href="/progress"><svg class="icon"><use href="#i-chart"/></svg><span>My progress</span></a>
     <a class="nav-item" data-page="planner" href="/planner"><svg class="icon"><use href="#i-spark"/></svg><span>AI planner</span></a>
@@ -68,7 +67,6 @@
         </div>
         <div class="card today-list-card"><div class="card-heading"><h2 class="card-title">Your tasks today</h2><button class="text-button" onclick="openAddTask()">+ Add task</button></div><div id="today-work-list"></div><a class="text-button" href="/timetable" data-page="timetable">See your full timetable ↗</a></div>
       </div>
-      <div id="today-reminders" class="reminder-nudge"></div>
       <div class="recent-work-strip" id="recent-work-strip"></div>
       <details class="advanced-overview"><summary>Daily stats, focus timer & inspiration <span>Show more +</span></summary>
       <div class="day-heading"><div class="section-label">Your day at a glance</div><span id="live-date" class="live-date"></span></div>
@@ -110,116 +108,6 @@
           <p class="planner-privacy">Your brief, selected goals, and this day’s time blocks are sent to Gemini. Your journal entries stay private.</p>
         </form>
         <div class="card planner-preview" id="planner-preview" aria-live="polite"><div class="planner-placeholder"><svg class="icon"><use href="#i-spark"/></svg><h2>A day that works for you.</h2><p>Your plan will appear here. Edit anything, then add it to your timetable in one step.</p><div class="planner-steps"><span>01 &nbsp; Tell us your priorities</span><span>02 &nbsp; Review your plan</span><span>03 &nbsp; Start your first task</span></div></div></div>
-      </div>
-    </section>
-    <section class="tab-panel" id="tab-todos">
-      <div class="page-header"><div><p class="eyebrow">MAKE ROOM IN YOUR HEAD</p><h1>Remember it. Do it later.</h1><p class="card-description">A home for little tasks, future plans, and things you don’t want to forget.</p></div></div>
-
-      <!-- Sub-tab navigation -->
-      <div class="todo-subtabs">
-        <button class="todo-subtab active" data-subtab="tasks" onclick="switchTodoSubtab('tasks')"><svg class="icon"><use href="#i-check"/></svg> My Tasks</button>
-        <button class="todo-subtab" data-subtab="reminders" onclick="switchTodoSubtab('reminders')"><svg class="icon"><use href="#i-clock"/></svg> Reminders</button>
-      </div>
-
-      <!-- MY TASKS SUB-TAB -->
-      <div class="todo-subtab-panel active" id="subtab-tasks">
-        <div class="todo-layout">
-          <form class="card todo-capture" onsubmit="event.preventDefault(); saveTodo()">
-            <h2 id="todo-form-title">Add a task</h2>
-            <label for="todo-name">What do you want to do?</label><input class="input" id="todo-name" maxlength="200" required placeholder="Read that book, apply for an internship…"/>
-            <label for="todo-notes">A little context (optional)</label><textarea class="input" id="todo-notes" maxlength="2000" rows="3" placeholder="Where to start, what to prepare, or why it matters"></textarea>
-            <label for="todo-priority">Priority</label>
-            <select class="input" id="todo-priority">
-              <option value="low">🟢 Low — whenever</option>
-              <option value="medium" selected>🟡 Medium — this week</option>
-              <option value="high">🟠 High — soon</option>
-              <option value="urgent">🔴 Urgent — today</option>
-            </select>
-            <label for="todo-category">Category</label>
-            <select class="input" id="todo-category">
-              <option value="general">📌 General</option>
-              <option value="study">📚 Study</option>
-              <option value="project">💻 Project</option>
-              <option value="health">💪 Health</option>
-              <option value="personal">🏠 Personal</option>
-              <option value="work">💼 Work</option>
-              <option value="creative">🎨 Creative</option>
-            </select>
-            <label for="todo-date">Due date (optional)</label><input class="input" id="todo-date" type="date"/>
-            <label for="todo-minutes">Time to set aside, in minutes</label><input class="input" id="todo-minutes" type="number" min="1" max="1440" value="25" required/>
-            <div class="account-buttons"><button class="btn btn-primary" id="todo-save" type="submit">Save task</button><button class="btn btn-ghost" id="todo-cancel" type="button" hidden onclick="resetTodoForm()">Cancel edit</button></div>
-            <p class="todo-help">Dated tasks appear on Today when they’re due. Prioritize what matters most.</p>
-          </form>
-          <div>
-            <div class="todo-toolbar">
-              <label for="todo-filter">Show</label>
-              <select class="input" id="todo-filter" onchange="renderTodos()">
-                <option value="open">To do</option>
-                <option value="due">Due now</option>
-                <option value="urgent">🔴 Urgent</option>
-                <option value="high">🟠 High priority</option>
-                <option value="later">Later &amp; someday</option>
-                <option value="done">Completed</option>
-                <option value="archived">Archived</option>
-              </select>
-              <select class="input" id="todo-category-filter" onchange="renderTodos()">
-                <option value="all">All categories</option>
-                <option value="general">📌 General</option>
-                <option value="study">📚 Study</option>
-                <option value="project">💻 Project</option>
-                <option value="health">💪 Health</option>
-                <option value="personal">🏠 Personal</option>
-                <option value="work">💼 Work</option>
-                <option value="creative">🎨 Creative</option>
-              </select>
-              <span id="todo-count" role="status"></span>
-            </div>
-            <div class="todo-stats-bar" id="todo-stats-bar"></div>
-            <div id="todo-list" class="todo-list"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- REMINDERS SUB-TAB -->
-      <div class="todo-subtab-panel" id="subtab-reminders">
-        <div class="todo-layout">
-          <form class="card todo-capture" onsubmit="event.preventDefault(); saveReminder()">
-            <h2 id="reminder-form-title"><svg class="icon" style="width:20px;height:20px;vertical-align:middle;margin-right:6px;"><use href="#i-clock"/></svg>Save a reminder</h2>
-            <label for="reminder-name">What do you want to remember?</label><input class="input" id="reminder-name" maxlength="200" required placeholder="Call the dentist, check college deadline…"/>
-            <label for="reminder-notes">Details (optional)</label><textarea class="input" id="reminder-notes" maxlength="2000" rows="3" placeholder="Phone number, link, any context you’ll need later"></textarea>
-            <label for="reminder-date">Remind me on</label><input class="input" id="reminder-date" type="date" required/>
-            <label for="reminder-time">At what time? (optional)</label><input class="input" id="reminder-time" type="time"/>
-            <label for="reminder-repeat">Repeat</label>
-            <select class="input" id="reminder-repeat">
-              <option value="none">Don’t repeat</option>
-              <option value="daily">Every day</option>
-              <option value="weekly">Every week</option>
-              <option value="monthly">Every month</option>
-            </select>
-            <div class="account-buttons"><button class="btn btn-primary" id="reminder-save" type="submit">Set reminder</button><button class="btn btn-ghost" id="reminder-cancel" type="button" hidden onclick="resetReminderForm()">Cancel edit</button></div>
-            <p class="todo-help">Reminders pop up on the dashboard when they’re due. Great for things you might forget.</p>
-          </form>
-          <div>
-            <div class="card todo-suggestion reminder-suggestion-card">
-              <div class="reminder-suggestion-inner">
-                <div><p class="eyebrow">NOT SURE WHAT TO DO?</p><h2>Let me pick for you.</h2><p id="reminder-suggestion-text">Hit the button and I’ll pull something from your to-do list or reminders.</p></div>
-                <button class="btn btn-ghost btn-pick-random" onclick="suggestRandomTask()"><svg class="icon"><use href="#i-spark"/></svg> Pick something for me</button>
-              </div>
-              <div class="random-pick-result" id="random-pick-result" hidden></div>
-            </div>
-            <div class="todo-toolbar">
-              <label for="reminder-filter">Show</label>
-              <select class="input" id="reminder-filter" onchange="renderReminders()">
-                <option value="upcoming">Upcoming</option>
-                <option value="today">Due today</option>
-                <option value="overdue">Overdue</option>
-                <option value="done">Completed</option>
-              </select>
-              <span id="reminder-count" role="status"></span>
-            </div>
-            <div id="reminder-list" class="todo-list"></div>
-          </div>
-        </div>
       </div>
     </section>
     <section class="tab-panel" id="tab-account">
