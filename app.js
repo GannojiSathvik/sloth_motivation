@@ -361,7 +361,11 @@ const AI_RESPONSES = {
 // ═══════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════
+let activeStorageKey = 'sm_state';
 let state = {
+  workSession: null,
+  workLogs: [],
+  plannerPreferences: {},
   focus: { remaining: 1500, endAt: null, completed: false },
   focusSessions: [],
   tasks: [],       // { id, name, desc, start, end, category, links, date, status: 'pending'|'done'|'skipped' }
@@ -378,11 +382,12 @@ let state = {
 // PERSISTENCE
 // ═══════════════════════════════════════
 function save() {
-  localStorage.setItem('sm_state', JSON.stringify(state));
+  localStorage.setItem(activeStorageKey, JSON.stringify(state));
+  window.cloud?.queueSave();
 }
 
 function load() {
-  const raw = localStorage.getItem('sm_state');
+  const raw = localStorage.getItem(activeStorageKey);
   if (raw) {
     const loaded = JSON.parse(raw);
     state = { ...state, ...loaded };
@@ -420,11 +425,13 @@ function updateClock() {
 // PAGE ROUTING
 // ═══════════════════════════════════════
 const PAGES = {
-  dashboard: { path: '/', title: 'Overview' },
+  dashboard: { path: '/', title: 'Today' },
   timetable: { path: '/timetable', title: 'Timetable' },
   journal: { path: '/journal', title: 'Journal' },
   progress: { path: '/progress', title: 'My progress' },
   quotes: { path: '/fuel', title: 'Daily fuel' },
+  planner: { path: '/planner', title: 'AI planner' },
+  account: { path: '/account', title: 'Your account' },
 };
 
 function pageFromPath(pathname) {
@@ -451,6 +458,7 @@ function renderPage(page, { focus = true } = {}) {
   if (page === 'dashboard') updateDashboard();
   if (page === 'timetable') renderTimetable();
   if (page === 'journal') renderJournal();
+  if (page === 'planner') initPlanner();
   if (page === 'progress') renderProgress();
   if (page === 'quotes') renderFuelSlide();
   else if (fuelTimer) {
@@ -674,6 +682,7 @@ function saveJournalEntry() {
 }
 
 function renderJournal() {
+  renderWorkHistory();
   const dp = document.getElementById('journal-date');
   if (!dp.value) dp.value = todayStr();
   const date = dp.value;
@@ -1013,6 +1022,7 @@ function updateDashboard() {
   // Streak
   computeStreak();
   updateOverviewMetrics();
+  renderWork();
 }
 
 function updateCurrentTask() {
@@ -1218,6 +1228,7 @@ function toggleFocus() {
   } else {
     if (state.focus.completed || state.focus.remaining <= 0) state.focus = { remaining: FOCUS_SECONDS, endAt: null, completed: false };
     state.focus.endAt = Date.now() + state.focus.remaining * 1000;
+    if (state.workSession) state.focus.overlapsWork = true;
   }
   save();
   renderFocus();
@@ -1232,8 +1243,9 @@ function renderFocus() {
   let remaining = state.focus.endAt ? Math.max(0, Math.ceil((state.focus.endAt - Date.now()) / 1000)) : state.focus.remaining;
   if (state.focus.endAt && remaining === 0) {
     const finishedAt = state.focus.endAt;
+    const overlapsWork = Boolean(state.focus.overlapsWork);
     state.focus = { remaining: 0, endAt: null, completed: true };
-    state.focusSessions.push({ date: localDate(new Date(finishedAt)), minutes: 25 });
+    state.focusSessions.push({ date: localDate(new Date(finishedAt)), minutes: 25, overlapsWork });
     save();
     updateOverviewMetrics();
     showToast('25 minutes, just for you. Session complete — take a breath.');
@@ -1255,7 +1267,7 @@ function updateOverviewMetrics() {
   setText('completion-note', done ? `${done} small win${done === 1 ? '' : 's'}` : 'A clean slate');
   document.getElementById('completion-fill').style.width = `${pct}%`;
   document.getElementById('sidebar-progress-fill').style.width = `${pct}%`;
-  const minutes = state.focusSessions.filter(s => s.date === today).reduce((sum, s) => sum + s.minutes, 0);
+  const minutes = Math.floor(state.workLogs.filter(log => log.date === today).reduce((sum, log) => sum + log.actualMs, 0) / 60000) + state.focusSessions.filter(s => s.date === today && !s.overlapsWork).reduce((sum, s) => sum + s.minutes, 0);
   setText('daily-focus', minutes >= 60 ? (minutes / 60).toFixed(1) : minutes);
   setText('daily-focus-unit', minutes >= 60 ? 'hrs' : 'min');
   setText('dashboard-streak', state.streak);
@@ -1272,6 +1284,236 @@ function updateOverviewMetrics() {
     const label = date.toLocaleDateString([], { weekday: 'short' });
     return `<span class="${complete ? 'complete' : ''}" title="${label}: ${complete ? 'active' : 'no completed tasks'}">${complete ? '✓' : label[0]}</span>`;
   }).join('');
+}
+
+// The active work session is deliberately independent of the optional Pomodoro timer.
+function workElapsed(session, now = Date.now()) {
+  if (!session) return 0;
+  const stop = session.endedAt || session.pausedAt || now;
+  return Math.max(0, stop - session.startedAt - (session.pausedMs || 0));
+}
+function clockDuration(ms) {
+  const seconds = Math.floor(ms / 1000);
+  return [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map(n => String(n).padStart(2, '0')).join(':');
+}
+function durationLabel(ms) {
+  const seconds = Math.floor(ms / 1000);
+  return seconds < 60 ? `${seconds} sec` : `${Math.floor(seconds / 60)} min${seconds % 60 ? ` ${seconds % 60} sec` : ''}`;
+}
+function workComparison(session) {
+  const actual = workElapsed(session);
+  const planned = session.plannedMinutes * 60000;
+  const difference = actual - planned;
+  return { actualMs: actual, plannedMs: planned, differenceMs: difference,
+    label: Math.abs(difference) < 1000 ? 'Right on your planned time' : `${durationLabel(Math.abs(difference))} ${difference > 0 ? 'over' : 'under'} your planned time` };
+}
+function renderWork() {
+  const session = state.workSession;
+  const picker = document.getElementById('work-picker');
+  if (!picker) return;
+  picker.hidden = Boolean(session);
+  document.getElementById('work-running-title').hidden = !session;
+  document.getElementById('work-start').hidden = Boolean(session);
+  document.getElementById('work-pause').hidden = !session || Boolean(session.endedAt);
+  document.getElementById('work-finish').hidden = !session;
+  setText('work-elapsed', clockDuration(workElapsed(session)));
+  setText('work-status', !session ? 'READY WHEN YOU ARE' : session.endedAt ? 'ONE LAST REFLECTION' : session.pausedAt ? 'TAKING A BREATHER' : 'YOU’RE WORKING ON');
+  setText('work-title', session?.taskName || '');
+  setText('work-started', session ? `Started ${new Date(session.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · Planned ${session.plannedMinutes} min` : '');
+  setText('work-caption', session?.endedAt ? 'Timer stopped. Your reflection is waiting to be saved.' : session?.pausedAt ? 'Paused. Rest time is excluded from your work log.' : session ? 'Tracking automatically, even if you switch pages.' : 'Time starts when you do. Pauses don’t count.');
+  setText('work-pause', session?.pausedAt ? 'Resume' : 'Pause');
+  setText('work-finish', session?.endedAt ? 'Finish your reflection ↗' : 'Finish & reflect ↗');
+  const select = document.getElementById('work-task');
+  const selected = select.value;
+  const pending = state.tasks.filter(t => t.date === todayStr() && t.status === 'pending').sort((a,b) => a.start.localeCompare(b.start));
+  const options = '<option value="">Something else / a new task</option>' + pending.map(t => `<option value="${t.id}">${escHtml(t.name)} · ${t.start}</option>`).join('');
+  if (select.innerHTML !== options) {
+    select.innerHTML = options;
+    select.value = pending.some(t => String(t.id) === selected) ? selected : pending[0]?.id || '';
+    selectWorkTask();
+  }
+  document.getElementById('today-work-list').innerHTML = pending.length ? pending.slice(0, 6).map(t => `<div class="today-work-item"><div><strong>${escHtml(t.name)}</strong><small>${t.start} – ${t.end} · ${taskDuration(t)} min planned</small></div><button class="text-button" onclick="startWork(${t.id})" ${session ? 'disabled' : ''}>Start ↗</button></div>`).join('') : '<div class="schedule-empty"><h3>A small start is enough.</h3><p>Add a task yourself, or let the AI planner map out your day.</p><a class="text-button" href="/planner" data-page="planner">Plan my day ↗</a></div>';
+  renderWorkDetails();
+  const latest = state.workLogs[state.workLogs.length - 1];
+  document.getElementById('recent-work-strip').innerHTML = latest ? `<span>LAST SESSION</span><strong>${escHtml(latest.taskName)}</strong><span>${durationLabel(latest.actualMs)} tracked · ${escHtml(latest.where)}</span><a class="text-button" href="/journal" data-page="journal">View work log ↗</a>` : '';
+}
+function selectWorkTask() {
+  const select = document.getElementById('work-task');
+  document.getElementById('work-custom').hidden = Boolean(select.value);
+  renderWorkDetails();
+}
+function renderWorkDetails() {
+  const session = state.workSession;
+  const task = session || state.tasks.find(t => String(t.id) === document.getElementById('work-task').value);
+  const links = (task?.links || []).filter(url => /^https?:\/\//i.test(url));
+  const el = document.getElementById('work-details');
+  el.hidden = !task?.desc && !links.length;
+  el.innerHTML = `${task?.desc ? `<p>${escHtml(task.desc)}</p>` : ''}${links.length ? `<div class="work-resource-links">${links.map(url => `<a href="${escAttr(url)}" target="_blank" rel="noopener noreferrer">Open ${escHtml(shortUrl(url))} ↗</a>`).join('')}</div>` : ''}`;
+}
+function startWork(taskId) {
+  if (state.workSession) { showToast('Finish your current session before starting another.'); return; }
+  const selected = taskId || Number(document.getElementById('work-task').value);
+  let task = state.tasks.find(t => t.id === selected && t.status === 'pending');
+  const now = Date.now();
+  let plannedMinutes;
+  if (task) plannedMinutes = taskDuration(task);
+  else {
+    const name = document.getElementById('work-name').value.trim();
+    plannedMinutes = Number(document.getElementById('work-planned').value);
+    if (!name || !Number.isFinite(plannedMinutes) || plannedMinutes < 1 || plannedMinutes > 1440) { showToast('Name your task and choose 1–1440 planned minutes.'); return; }
+    // Unscheduled work can cross midnight without inventing a timetable block.
+    task = { id: null, name };
+  }
+  if (state.focus.endAt) state.focus.overlapsWork = true;
+  state.workSession = { id: now, taskId: task.id, taskName: task.name, desc: task.desc || '', links: task.links || [], plannedMinutes, startedAt: now, endedAt: null, pausedAt: null, pausedMs: 0 };
+  save();
+  navigateToPage('dashboard');
+  renderWork();
+}
+function pauseWork() {
+  const session = state.workSession;
+  if (!session || session.endedAt) return;
+  if (session.pausedAt) { session.pausedMs += Date.now() - session.pausedAt; session.pausedAt = null; }
+  else session.pausedAt = Date.now();
+  save(); renderWork();
+}
+function finishWork() {
+  const session = state.workSession;
+  if (!session) return;
+  if (!session.endedAt) {
+    const now = Date.now();
+    if (session.pausedAt) { session.pausedMs += now - session.pausedAt; session.pausedAt = null; }
+    session.endedAt = now;
+    save();
+  }
+  const comparison = workComparison(session);
+  document.getElementById('work-log-summary').innerHTML = `<strong>${escHtml(session.taskName)}</strong><div><span>Started</span><span>${new Date(session.startedAt).toLocaleString()}</span></div><div><span>Finished</span><span>${new Date(session.endedAt).toLocaleString()}</span></div><div><span>Tracked work</span><b>${durationLabel(comparison.actualMs)}</b></div><div><span>Planned</span><span>${session.plannedMinutes} min</span></div><p>${comparison.label}${session.pausedMs ? ` · ${durationLabel(session.pausedMs)} paused` : ''}</p>`;
+  renderWork(); openModal('modal-work-log');
+}
+function saveWorkLog() {
+  const session = state.workSession;
+  if (!session?.endedAt) return;
+  const did = document.getElementById('work-did').value.trim();
+  const where = document.getElementById('work-where').value.trim();
+  if (!did || !where) { showToast('Tell us what you did and where you worked.'); return; }
+  const outcome = document.getElementById('work-outcome').value === 'done' ? 'done' : 'pending';
+  const comparison = workComparison(session);
+  state.workLogs.push({ ...session, ...comparison, id: session.id, did, where, outcome, date: localDate(new Date(session.startedAt)) });
+  const task = state.tasks.find(t => t.id === session.taskId);
+  if (task) task.status = outcome;
+  state.workSession = null;
+  save(); closeModal('modal-work-log');
+  clearForm(['work-did', 'work-where', 'work-name']);
+  updateDashboard(); renderWork(); renderJournal();
+  showToast('Work logged. Your time comparison is saved automatically.');
+}
+function renderWorkHistory() {
+  const date = document.getElementById('journal-date').value || todayStr();
+  const logs = state.workLogs.filter(log => log.date === date).slice().reverse();
+  const container = document.getElementById('work-history');
+  if (!container) return;
+  container.innerHTML = logs.length ? `<h2 class="card-title">Your tracked work</h2>` + logs.map(log => `<article class="card work-log-card"><div class="card-heading"><h3>${escHtml(log.taskName)}</h3><span class="small-pill">${durationLabel(log.actualMs)} tracked</span></div><p>${escHtml(log.did)}</p><div class="work-log-meta"><span>Where: ${escHtml(log.where)}</span><span>${new Date(log.startedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} → ${new Date(log.endedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span></div><div class="work-log-meta"><span>${log.plannedMinutes} min planned · ${escHtml(log.label)}</span><span>${log.outcome === 'done' ? 'Completed' : 'More to do'}</span></div></article>`).join('') : '';
+}
+
+let plannerDraft = null;
+let plannerController = null;
+let plannerReady = false;
+function initPlanner() {
+  const preferences = state.plannerPreferences || {};
+  const date = document.getElementById('planner-date');
+  if (!date.value) {
+    date.value = todayStr(); date.min = todayStr();
+    document.getElementById('planner-brief').value = preferences.brief || '';
+    document.getElementById('planner-start').value = preferences.start || '09:00';
+    document.getElementById('planner-end').value = preferences.end || '18:00';
+    document.getElementById('planner-energy').value = preferences.energy || 'balanced';
+    document.getElementById('planner-focus').value = preferences.focusMinutes || 50;
+  }
+  updatePlannerContext();
+  if (!plannerReady) fetch('/api/config').then(r => r.json()).then(config => { plannerReady = true; setText('planner-connection', config.geminiConfigured ? 'Gemini connected' : 'Gemini setup needed'); }).catch(() => setText('planner-connection', 'Connection unavailable'));
+}
+function updatePlannerContext() {
+  const date = document.getElementById('planner-date').value;
+  const count = state.tasks.filter(t => t.date === date && t.status !== 'skipped').length;
+  setText('planner-context', count ? `${count} existing block${count === 1 ? '' : 's'} will be kept in place. Your new plan fits around them.` : 'A clean slate. We’ll include focus time, breaks, and breathing room.');
+}
+function fillPlannerExample() { document.getElementById('planner-brief').value = 'Study DSA for 90 minutes, make progress on my coding project, and take a 30-minute walk. Keep lunch free from 13:00 to 14:00. Include breaks and leave some breathing room.'; }
+function plannerError(message) { const el = document.getElementById('planner-error'); el.textContent = message; el.hidden = !message; }
+function cancelDailyPlan() { plannerController?.abort(); }
+async function generateDailyPlan() {
+  if (plannerController) return;
+  plannerError('');
+  const date = document.getElementById('planner-date').value;
+  const request = {
+    date, brief: document.getElementById('planner-brief').value.trim(),
+    start: document.getElementById('planner-start').value, end: document.getElementById('planner-end').value,
+    energy: document.getElementById('planner-energy').value, focusMinutes: Number(document.getElementById('planner-focus').value),
+    commitments: state.tasks.filter(t => t.date === date && t.status !== 'skipped').map(t => ({name:t.name,start:t.start,end:t.end})),
+    goals: document.getElementById('planner-use-goals').checked ? state.goals.slice(0,20).map(g => `${g.name} (${g.current}/${g.target} ${g.unit || ''}${g.deadline ? ', due '+g.deadline : ''})`.slice(0,300)) : []
+  };
+  if (!request.brief || date < todayStr() || request.start >= request.end) { plannerError('Describe your priorities, choose today or a future date, and set a valid time window.'); return; }
+  if (date === todayStr()) {
+    const now = new Date(), minute = now.getHours()*60+now.getMinutes()+1;
+    const currentTime = `${String(Math.floor(minute/60)).padStart(2,'0')}:${String(minute%60).padStart(2,'0')}`;
+    if (request.start < currentTime) request.start = currentTime;
+    if (request.start >= request.end) { plannerError('That time window has already passed. Choose later hours or plan tomorrow.'); return; }
+  }
+  state.plannerPreferences = { brief: request.brief, start: request.start, end: request.end, energy: request.energy, focusMinutes: request.focusMinutes };
+  save();
+  plannerController = new AbortController();
+  document.getElementById('planner-fields').disabled = true;
+  document.getElementById('planner-generate').disabled = true;
+  document.getElementById('planner-cancel').hidden = false;
+  const oldDraft = plannerDraft;
+  plannerDraft = null;
+  document.getElementById('planner-preview').innerHTML = '<div class="planner-placeholder"><div class="planning-loader">✦</div><h2>Making room for what matters…</h2><p>Gemini is fitting your priorities around your day, with time to breathe.</p></div>';
+  try {
+    const token = await window.cloud?.getAccessToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch('/api/plan', { method:'POST', headers, body:JSON.stringify(request), signal:plannerController.signal });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Planning could not finish. Try again.');
+    plannerDraft = { ...result, start: request.start, end: request.end };
+    renderPlannerDraft();
+  } catch(error) {
+    plannerDraft = oldDraft;
+    plannerError(error.name === 'AbortError' ? 'Generation cancelled. Your saved timetable is unchanged.' : error.message);
+    if (plannerDraft) renderPlannerDraft();
+    else document.getElementById('planner-preview').innerHTML = '<div class="planner-placeholder"><svg class="icon"><use href="#i-spark"/></svg><h2>Let’s try that again.</h2><p>Your timetable hasn’t changed. Adjust your brief or try generating again.</p></div>';
+  } finally {
+    plannerController = null;
+    document.getElementById('planner-fields').disabled = false;
+    document.getElementById('planner-generate').disabled = false;
+    document.getElementById('planner-cancel').hidden = true;
+  }
+}
+function renderPlannerDraft() {
+  const draft = plannerDraft;
+  if (!draft) return;
+  const categories = {focus:'Focus',learning:'Learning',exercise:'Exercise',break:'Break',social:'Social',admin:'Admin',other:'Other'};
+  document.getElementById('planner-preview').innerHTML = `<div class="card-heading"><h2 class="card-title">Your proposed day</h2><span class="small-pill">${escHtml(draft.date)} · Gemini</span></div><p class="planner-summary">${escHtml(draft.summary)}</p><div class="planner-blocks">${draft.blocks.map((block,i) => `<div class="planner-block"><div class="planner-block-top"><span class="planner-block-number">${String(i+1).padStart(2,'0')}</span><input class="input" aria-label="Task ${i+1} name" maxlength="200" value="${escHtml(block.name)}" oninput="editPlanBlock(${i}, 'name', this.value)"/><button class="text-button" onclick="removePlanBlock(${i})" aria-label="Remove task ${i+1}">✕</button></div><div class="planner-block-times"><input class="input" type="time" aria-label="Task ${i+1} start" value="${block.start}" oninput="editPlanBlock(${i}, 'start', this.value)"/><span>→</span><input class="input" type="time" aria-label="Task ${i+1} end" value="${block.end}" oninput="editPlanBlock(${i}, 'end', this.value)"/><select class="input" aria-label="Task ${i+1} category" oninput="editPlanBlock(${i}, 'category', this.value)">${Object.entries(categories).map(([key,label]) => `<option value="${key}" ${block.category===key?'selected':''}>${label}</option>`).join('')}</select></div><p>${escHtml(block.desc)}</p></div>`).join('')}</div>${draft.unscheduled.length?`<div class="planner-unscheduled"><strong>For another day</strong><ul>${draft.unscheduled.map(item=>`<li>${escHtml(item)}</li>`).join('')}</ul></div>`:''}<div class="planner-accept"><p>Only these new blocks will be added. Existing tasks stay as they are.</p><button class="btn btn-primary" onclick="acceptDailyPlan()" ${draft.blocks.length?'':'disabled'}>Add ${draft.blocks.length} blocks to my day ↗</button></div>`;
+}
+function editPlanBlock(index, field, value) { if (plannerDraft?.blocks[index]) plannerDraft.blocks[index][field] = value.trim(); }
+function removePlanBlock(index) { plannerDraft?.blocks.splice(index,1); renderPlannerDraft(); }
+function acceptDailyPlan() {
+  if (!plannerDraft?.blocks.length) return;
+  const draft = plannerDraft;
+  const blocks = draft.blocks.slice().sort((a,b)=>a.start.localeCompare(b.start));
+  const existing = state.tasks.filter(t=>t.date===draft.date && t.status!=='skipped');
+  const validTime = t=>/^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+  for (let i=0;i<blocks.length;i++) {
+    const block=blocks[i];
+    if (!block.name || !validTime(block.start) || !validTime(block.end) || block.start>=block.end || block.start<draft.start || block.end>draft.end) { plannerError('Check your edited task names and times. Keep each block inside the original time window.'); return; }
+    if ((i && block.start<blocks[i-1].end) || existing.some(t=>block.start<t.end && block.end>t.start)) { plannerError('Some blocks overlap one another or a task added since this plan was generated. Adjust their times first.'); return; }
+  }
+  const base = Math.max(Date.now(), ...state.tasks.map(t=>Number(t.id)||0)) + 1;
+  state.tasks.push(...blocks.map((block,i)=>({...block,id:base+i,date:draft.date,links:[],status:'pending',source:'gemini'})));
+  save(); plannerDraft = null;
+  document.getElementById('planner-preview').innerHTML = '<div class="planner-placeholder"><h2>Your day is ready.</h2><p>Your blocks are now in the timetable. Head to Today to start a task.</p><a class="btn btn-primary" href="/" data-page="dashboard">Start working ↗</a></div>';
+  document.getElementById('timetable-date').value=draft.date;
+  updateDashboard(); navigateToPage('timetable');
+  showToast(`${blocks.length} blocks added. Your day has a little more direction.`);
 }
 
 // ═══════════════════════════════════════
@@ -1370,6 +1612,28 @@ function init() {
   }
 
   setupRouting();
+  setInterval(() => {
+    if (state.workSession) {
+      setText('work-elapsed', clockDuration(workElapsed(state.workSession)));
+    }
+  }, 1000);
+  window.cloud?.init({
+    getState: () => state,
+    switchAccount: (userId, remoteState) => {
+      const guest = JSON.parse(localStorage.getItem('sm_state') || '{}');
+      activeStorageKey = userId ? `sm_state:${userId}` : 'sm_state';
+      const local = JSON.parse(localStorage.getItem(activeStorageKey) || '{}');
+      const baseline = { tasks: [], journal: [], goals: [], history: {}, streak: 0, workLogs: [], workSession: null, focusSessions: [], focus: { remaining: 1500, endAt: null, completed: false }, plannerPreferences: {}, currentQuoteIdx: 0, currentJournalRating: 3 };
+      const source = remoteState || (Object.keys(local).length ? local : userId ? guest : {});
+      state = { ...baseline, ...source, workSession: local.workSession || (!userId ? source.workSession : null), focus: local.focus || baseline.focus };
+      localStorage.setItem(activeStorageKey, JSON.stringify(state));
+      updateDashboard(); renderWork(); renderFocus(); renderMainQuote();
+      renderPage(pageFromPath(window.location.pathname) || 'dashboard', { focus: false });
+      return state;
+    },
+    hasActiveWork: () => Boolean(state.workSession),
+    notify: showToast
+  });
   console.log('SlothMotivate ready.');
 }
 

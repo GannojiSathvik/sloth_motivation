@@ -1,13 +1,21 @@
 {
   "name": "sloth-motivate",
   "version": "1.0.0",
-  "description": "A local productivity workspace with separate page URLs.",
+  "private": true,
+  "description": "A calm productivity workspace with AI planning and automatic work logs",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js",
-    "test": "node --test tests/app.test.cjs"
+    "build": "node scripts/build.cjs",
+    "test": "node --test tests/*.test.cjs",
+    "dev": "node server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
 }

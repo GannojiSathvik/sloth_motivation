@@ -120,3 +120,38 @@ test('navigation updates URL and page title without duplicate history entries', 
   assert.deepEqual(a.routeHistory, ['/journal', '/progress']);
   assert.equal(a.run('document.title'), 'My progress — SlothMotivate');
 });
+
+test('work tracking measures elapsed time and excludes pauses', () => {
+  const a = app();
+  assert.equal(a.run('workElapsed({startedAt:1000,pausedMs:2000,endedAt:11000})'), 8000);
+  assert.equal(a.run('workElapsed({startedAt:1000,pausedMs:1000,pausedAt:6000}, 9000)'), 4000);
+  assert.equal(a.run('workElapsed({startedAt:1000,pausedMs:0}, 61000)'), 60000);
+});
+
+test('work duration survives crossing midnight and compares to planned minutes', () => {
+  const a = app();
+  assert.equal(a.run("workComparison({startedAt:new Date(2026,9,27,23,50).getTime(),endedAt:new Date(2026,9,28,0,20).getTime(),pausedMs:300000,plannedMinutes:30}).actualMs"), 1500000);
+  assert.match(a.run("workComparison({startedAt:1000,endedAt:601000,pausedMs:0,plannedMinutes:25}).label"), /15 min under/);
+});
+
+test('finishing freezes the end time until the work reflection is saved', () => {
+  const a = app();
+  a.run("state.workSession={id:1,taskId:7,taskName:'Test',plannedMinutes:25,startedAt:Date.now()-60000,pausedMs:0,endedAt:null}; finishWork()");
+  const end = a.run('state.workSession.endedAt');
+  a.run('finishWork()');
+  assert.equal(a.run('state.workSession.endedAt'), end);
+  assert.equal(a.run('state.workLogs.length'), 0);
+});
+
+test('saving a reflection records work and marks its task once', () => {
+  const a = app();
+  a.run("state.tasks=[{id:7,name:'Practice',date:todayStr(),start:'09:00',end:'09:25',status:'pending',links:[],category:'focus'}]; state.workSession={id:1,taskId:7,taskName:'Practice',plannedMinutes:25,startedAt:Date.now()-60000,endedAt:Date.now(),pausedMs:0}");
+  a.element('work-did').value='Solved one problem';
+  a.element('work-where').value='LeetCode';
+  a.element('work-outcome').value='done';
+  a.run('saveWorkLog(); saveWorkLog()');
+  assert.equal(a.run('state.workLogs.length'),1);
+  assert.equal(a.run('state.tasks[0].status'),'done');
+  assert.equal(a.run('state.workSession'),null);
+  assert.equal(a.run('state.workLogs[0].where'),'LeetCode');
+});

@@ -3,7 +3,6 @@
 > *"Why run when you can walk? Why walk when you can nap? And why stress when you can take one tiny step at a time?"*
 
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](#license)
-[![Zero-Dependencies](https://img.shields.io/badge/dependencies-0-success.svg)](#features)
 [![Sloth-Approved](https://img.shields.io/badge/speed-leisurely-green.svg)](#philosophy)
 
 Welcome to **SlothMotivate** — the anti-burnout productivity workspace built for humans who are tired of hyper-caffeinated productivity apps yelling at them to hustle 25 hours a day.
@@ -26,21 +25,25 @@ Most productivity apps:
 - 📓 **Reflective Journal**: Jot down your thoughts, wins, and the snacks you consumed.
 - 📈 **Gentle Progress & Heatmap**: A 30-day activity grid that celebrates showing up.
 - ⚡ **Daily Fuel**: Quotes to remind you that even sloths get things done eventually.
-- 🔒 **Zero creepy tracking**: 100% local. Your data sleeps soundly in your browser (`localStorage`).
-- ⚡ **Zero bloated node_modules**: Pure Node.js, pure Vanilla JS, CSS with actual taste. Runs instantly without downloading half the internet.
+- ⏱️ **Start → finish → reflect**: Automatic elapsed time, pause exclusion, and planned-versus-actual comparison. Record what you did and where you worked.
+- ✦ **Gemini planner**: Describe your day, review an editable schedule around existing commitments, then add it to your timetable.
+- 🔒 **Optional private cloud saving**: Supabase accounts sync tasks, goals, work logs, and reflections. Signed-out work stays in browser storage. Active timers stay on the device where they started.
 
 ---
 
 ## 🚀 Quickstart (Even a sloth can do this in 20 seconds)
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or newer recommended, because we like nice things).
+- [Node.js](https://nodejs.org/) (v22 or newer).
 
 ### 1. Fire up the engine
 ```sh
-npm run dev
+npm ci
+npm run build
+cp .env.example .env
+npm start
 ```
-*(Or if you prefer typing like an artisan: `node server.js`)*
+Add `GEMINI_API_KEY` to `.env` to enable AI planning. Keep it private; never use a browser-prefixed environment variable for this key.
 
 ### 2. Open in your browser
 Point your favorite web browser to:
@@ -54,13 +57,31 @@ Point your favorite web browser to:
 
 | Page | Route | What you'll find |
 | --- | --- | --- |
-| 🏡 **Overview** | `/` | Your dashboard, daily metrics, focus timer, and today's top priorities |
+| 🏡 **Today** | `/` | One clear task to start, automatic work timer, and optional daily stats |
 | 📅 **Timetable** | `/timetable` | Time-blocking without the anxiety |
 | 📖 **Journal** | `/journal` | Space to reflect, breathe, and celebrate micro-wins |
 | 📊 **My Progress** | `/progress` | 30-day activity heatmap and your glorious streak |
+| ✦ **AI planner** | `/planner` | Describe priorities, preview and edit blocks, then add them |
+| 🔒 **Cloud account** | `/account` | Sign in, sync, and manage your private workspace |
 | 💡 **Daily Fuel** | `/fuel` | Wisdom and motivation when the couch is calling your name |
 
 ---
+
+## Cloud storage setup
+
+1. Choose a Supabase project and apply `supabase/schema.sql` once. The table is named `sloth_workspaces` to keep this app separate from other apps.
+2. Add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` to `.env`, then restart the server. Use a publishable key, never a service-role key.
+3. Open **Cloud account**, create an email/password account, confirm the email if required, and sign in. On first sign-in to an empty workspace, this device's local work is copied to your account.
+
+Row-level security restricts every row to its owner. Changes save automatically with version checks to prevent overwriting changes from another device. If there is a conflict, the account page offers “Load latest cloud version,” which backs up the local copy first. Offline work remains on the device; use **Sync now** after reconnecting. Browser storage is not encrypted, so sign out on shared devices and use separate browser profiles.
+
+## Hosting on Vercel
+
+The build publishes only browser assets in `dist/`. The `/api/config` and `/api/plan` functions run on the server, and navigation routes keep working on direct visits. Set `GEMINI_API_KEY`, `GEMINI_MODEL`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY` in Vercel's project environment settings before redeploying. Local `.env` values are never uploaded.
+
+The hosted AI planner requires a valid Supabase sign-in. Its short request cooldown is per function instance; configure provider quotas for a publicly available deployment. The local planner runs without sign-in on loopback only.
+
+When you generate a plan, your planning brief, selected goals, and existing commitments for that date are sent to Gemini. Work reflections are saved to Supabase only when you sign in; they are not sent to Gemini. Plans remain drafts until you accept them. Time tracking measures elapsed time between your clicks, not keyboard activity or proof of work.
 
 ## 🧪 Testing
 
@@ -69,7 +90,7 @@ We take our laziness seriously, which means our code has to be bulletproof so we
 ```sh
 npm test
 ```
-*(Runs the native Node test suite in `tests/app.test.cjs` with 0 external dependencies!)*
+Covers timer recovery, pauses, midnight boundaries, saved reflections, planning conflicts, provider errors, routing, and API access checks.
 
 ---
 
