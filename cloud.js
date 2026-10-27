@@ -10,7 +10,7 @@ function status(label, message) {
 }
 function snapshot() {
   const state = hooks.getState();
-  return { tasks: state.tasks, journal: state.journal, goals: state.goals, history: state.history, workLogs: state.workLogs, focusSessions: state.focusSessions, plannerPreferences: state.plannerPreferences };
+  return { todos: state.todos, reminders: state.reminders, tasks: state.tasks, journal: state.journal, goals: state.goals, history: state.history, workLogs: state.workLogs, focusSessions: state.focusSessions, plannerPreferences: state.plannerPreferences };
 }
 function accountView(user) {
   document.getElementById('account-signed-out').hidden = Boolean(user);

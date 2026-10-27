@@ -366,6 +366,8 @@ let state = {
   workSession: null,
   workLogs: [],
   plannerPreferences: {},
+  todos: [],
+  reminders: [],   // { id, name, notes, date, time, repeat, done, archived }
   focus: { remaining: 1500, endAt: null, completed: false },
   focusSessions: [],
   tasks: [],       // { id, name, desc, start, end, category, links, date, status: 'pending'|'done'|'skipped' }
@@ -431,6 +433,7 @@ const PAGES = {
   progress: { path: '/progress', title: 'My progress' },
   quotes: { path: '/fuel', title: 'Daily fuel' },
   planner: { path: '/planner', title: 'AI planner' },
+  todos: { path: '/todos', title: 'To-do & reminders' },
   account: { path: '/account', title: 'Your account' },
 };
 
@@ -459,6 +462,7 @@ function renderPage(page, { focus = true } = {}) {
   if (page === 'timetable') renderTimetable();
   if (page === 'journal') renderJournal();
   if (page === 'planner') initPlanner();
+  if (page === 'todos') renderTodos();
   if (page === 'progress') renderProgress();
   if (page === 'quotes') renderFuelSlide();
   else if (fuelTimer) {
@@ -1334,6 +1338,7 @@ function renderWork() {
   }
   document.getElementById('today-work-list').innerHTML = pending.length ? pending.slice(0, 6).map(t => `<div class="today-work-item"><div><strong>${escHtml(t.name)}</strong><small>${t.start} – ${t.end} · ${taskDuration(t)} min planned</small></div><button class="text-button" onclick="startWork(${t.id})" ${session ? 'disabled' : ''}>Start ↗</button></div>`).join('') : '<div class="schedule-empty"><h3>A small start is enough.</h3><p>Add a task yourself, or let the AI planner map out your day.</p><a class="text-button" href="/planner" data-page="planner">Plan my day ↗</a></div>';
   renderWorkDetails();
+  renderReminderNudge();
   const latest = state.workLogs[state.workLogs.length - 1];
   document.getElementById('recent-work-strip').innerHTML = latest ? `<span>LAST SESSION</span><strong>${escHtml(latest.taskName)}</strong><span>${durationLabel(latest.actualMs)} tracked · ${escHtml(latest.where)}</span><a class="text-button" href="/journal" data-page="journal">View work log ↗</a>` : '';
 }
@@ -1401,6 +1406,8 @@ function saveWorkLog() {
   state.workLogs.push({ ...session, ...comparison, id: session.id, did, where, outcome, date: localDate(new Date(session.startedAt)) });
   const task = state.tasks.find(t => t.id === session.taskId);
   if (task) task.status = outcome;
+  const todo = state.todos.find(item => item.id === session.todoId);
+  if (todo) todo.done = outcome === 'done';
   state.workSession = null;
   save(); closeModal('modal-work-log');
   clearForm(['work-did', 'work-where', 'work-name']);
@@ -1621,9 +1628,10 @@ function init() {
     getState: () => state,
     switchAccount: (userId, remoteState) => {
       const guest = JSON.parse(localStorage.getItem('sm_state') || '{}');
+      resetTodoForm();
       activeStorageKey = userId ? `sm_state:${userId}` : 'sm_state';
       const local = JSON.parse(localStorage.getItem(activeStorageKey) || '{}');
-      const baseline = { tasks: [], journal: [], goals: [], history: {}, streak: 0, workLogs: [], workSession: null, focusSessions: [], focus: { remaining: 1500, endAt: null, completed: false }, plannerPreferences: {}, currentQuoteIdx: 0, currentJournalRating: 3 };
+      const baseline = { todos: [], reminders: [], tasks: [], journal: [], goals: [], history: {}, streak: 0, workLogs: [], workSession: null, focusSessions: [], focus: { remaining: 1500, endAt: null, completed: false }, plannerPreferences: {}, currentQuoteIdx: 0, currentJournalRating: 3 };
       const source = remoteState || (Object.keys(local).length ? local : userId ? guest : {});
       state = { ...baseline, ...source, workSession: local.workSession || (!userId ? source.workSession : null), focus: local.focus || baseline.focus };
       localStorage.setItem(activeStorageKey, JSON.stringify(state));
@@ -1638,3 +1646,424 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// A lightweight inbox: reminders are local-calendar dates, not background alarms.
+let editingTodoId = null;
+let editingReminderId = null;
+
+const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
+const PRIORITY_EMOJI = { urgent: '\u{1f534}', high: '\u{1f7e0}', medium: '\u{1f7e1}', low: '\u{1f7e2}' };
+const PRIORITY_LABEL = { urgent: 'Urgent', high: 'High', medium: 'Medium', low: 'Low' };
+const CATEGORY_EMOJI = { general: '\u{1f4cc}', study: '\u{1f4da}', project: '\u{1f4bb}', health: '\u{1f4aa}', personal: '\u{1f3e0}', work: '\u{1f4bc}', creative: '\u{1f3a8}' };
+const CATEGORY_LABEL = { general: 'General', study: 'Study', project: 'Project', health: 'Health', personal: 'Personal', work: 'Work', creative: 'Creative' };
+
+function todoDue(item) { return !item.done && !item.archived && Boolean(item.date) && item.date <= todayStr(); }
+function sortedTodos() {
+  return state.todos.filter(t => !t.done && !t.archived).slice().sort((a, b) => {
+    const pa = PRIORITY_ORDER[a.priority || 'medium'] ?? 2;
+    const pb = PRIORITY_ORDER[b.priority || 'medium'] ?? 2;
+    if (pa !== pb) return pa - pb;
+    return (a.date || '9999').localeCompare(b.date || '9999') || a.id - b.id;
+  });
+}
+
+function switchTodoSubtab(tab) {
+  document.querySelectorAll('.todo-subtab').forEach(btn => btn.classList.toggle('active', btn.dataset.subtab === tab));
+  document.querySelectorAll('.todo-subtab-panel').forEach(panel => panel.classList.toggle('active', panel.id === 'subtab-' + tab));
+  if (tab === 'tasks') renderTodos();
+  if (tab === 'reminders') renderReminders();
+}
+
+function saveTodo() {
+  const name = document.getElementById('todo-name').value.trim();
+  const date = document.getElementById('todo-date').value;
+  const minutes = Number(document.getElementById('todo-minutes').value);
+  const priority = document.getElementById('todo-priority').value;
+  const category = document.getElementById('todo-category').value;
+  if (!name || !Number.isInteger(minutes) || minutes < 1 || minutes > 1440) { showToast('Add a task name and choose 1\u20131440 minutes.'); return; }
+  if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)))) { showToast('Choose a valid due date.'); return; }
+  const fields = { name, notes: document.getElementById('todo-notes').value.trim(), date, minutes, priority, category };
+  const existing = state.todos.find(t => t.id === editingTodoId);
+  if (existing) Object.assign(existing, fields);
+  else state.todos.push({ id: Math.max(Date.now(), ...state.todos.map(t => t.id)) + 1, ...fields, done: false, archived: false, createdAt: Date.now() });
+  save(); resetTodoForm(); renderTodos(); renderReminderNudge(); showToast(existing ? 'Task updated.' : 'Saved. One less thing to keep in your head.');
+}
+
+function resetTodoForm() {
+  editingTodoId = null;
+  clearForm(['todo-name', 'todo-notes', 'todo-date']);
+  document.getElementById('todo-minutes').value = '25';
+  document.getElementById('todo-priority').value = 'medium';
+  document.getElementById('todo-category').value = 'general';
+  setText('todo-form-title', 'Add a task'); setText('todo-save', 'Save task');
+  document.getElementById('todo-cancel').hidden = true;
+}
+
+function editTodo(id) {
+  const item = state.todos.find(t => t.id === id); if (!item) return;
+  editingTodoId = id;
+  for (const [field, value] of Object.entries({ name: item.name, notes: item.notes, date: item.date, minutes: item.minutes, priority: item.priority || 'medium', category: item.category || 'general' })) {
+    const el = document.getElementById('todo-' + field);
+    if (el) el.value = value;
+  }
+  setText('todo-form-title', 'Edit task'); setText('todo-save', 'Save changes');
+  document.getElementById('todo-cancel').hidden = false;
+  document.getElementById('todo-name').focus(); document.getElementById('todo-name').scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+}
+
+function changeTodo(id, action) {
+  const item = state.todos.find(t => t.id === id); if (!item) return;
+  if (state.workSession?.todoId === id) { showToast('Finish your active work session first.'); return; }
+  if (action === 'done') { item.done = !item.done; if (item.done) item.completedAt = Date.now(); }
+  if (action === 'archive') item.archived = !item.archived;
+  if (action === 'tomorrow') { const day = new Date(); day.setDate(day.getDate() + 1); item.date = localDate(day); }
+  if (action === 'priority-up') {
+    const levels = ['low', 'medium', 'high', 'urgent'];
+    const idx = levels.indexOf(item.priority || 'medium');
+    if (idx < levels.length - 1) item.priority = levels[idx + 1];
+  }
+  save(); renderTodos(); renderReminderNudge();
+}
+
+function startTodo(id) {
+  if (state.workSession) { showToast('Finish your current session before starting another.'); return; }
+  const item = state.todos.find(t => t.id === id && !t.done && !t.archived); if (!item) return;
+  const now = Date.now();
+  if (state.focus.endAt) state.focus.overlapsWork = true;
+  state.workSession = { id: now, taskId: null, todoId: id, taskName: item.name, desc: item.notes, links: [], plannedMinutes: item.minutes, startedAt: now, endedAt: null, pausedAt: null, pausedMs: 0 };
+  save(); navigateToPage('dashboard');
+}
+
+function renderTodoStatsBar() {
+  const el = document.getElementById('todo-stats-bar'); if (!el) return;
+  const all = state.todos.filter(t => !t.archived);
+  const total = all.length;
+  const done = all.filter(t => t.done).length;
+  const urgent = all.filter(t => !t.done && t.priority === 'urgent').length;
+  const overdue = all.filter(t => todoDue(t) && t.date < todayStr()).length;
+  if (!total) { el.innerHTML = ''; return; }
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  el.innerHTML = `<div class="todo-stats-inner">
+    <div class="todo-stat"><span class="todo-stat-num">${done}</span><span class="todo-stat-label">Done</span></div>
+    <div class="todo-stat"><span class="todo-stat-num">${total - done}</span><span class="todo-stat-label">Remaining</span></div>
+    ${urgent ? `<div class="todo-stat todo-stat-urgent"><span class="todo-stat-num">${urgent}</span><span class="todo-stat-label">Urgent</span></div>` : ''}
+    ${overdue ? `<div class="todo-stat todo-stat-overdue"><span class="todo-stat-num">${overdue}</span><span class="todo-stat-label">Overdue</span></div>` : ''}
+    <div class="todo-progress-mini"><div class="todo-progress-mini-fill" style="width:${pct}%"></div></div>
+    <span class="todo-stat-pct">${pct}%</span>
+  </div>`;
+}
+
+function renderTodos() {
+  const filterEl = document.getElementById('todo-filter');
+  const catFilterEl = document.getElementById('todo-category-filter');
+  if (!filterEl) return;
+  const filter = filterEl.value || 'open';
+  const catFilter = catFilterEl ? catFilterEl.value : 'all';
+
+  let items = state.todos.filter(t => {
+    if (filter === 'archived') return t.archived;
+    if (t.archived) return false;
+    if (filter === 'done') return t.done;
+    if (t.done) return false;
+    if (filter === 'due') return todoDue(t);
+    if (filter === 'urgent') return (t.priority || 'medium') === 'urgent';
+    if (filter === 'high') return (t.priority || 'medium') === 'high';
+    if (filter === 'later') return !todoDue(t);
+    return true;
+  });
+
+  if (catFilter !== 'all') {
+    items = items.filter(t => (t.category || 'general') === catFilter);
+  }
+
+  items.sort((a, b) => {
+    const pa = PRIORITY_ORDER[a.priority || 'medium'] ?? 2;
+    const pb = PRIORITY_ORDER[b.priority || 'medium'] ?? 2;
+    if (pa !== pb) return pa - pb;
+    return (a.date || '9999').localeCompare(b.date || '9999') || a.id - b.id;
+  });
+
+  setText('todo-count', `${items.length} ${items.length === 1 ? 'item' : 'items'}`);
+  renderTodoStatsBar();
+
+  const listEl = document.getElementById('todo-list');
+  if (!listEl) return;
+
+  listEl.innerHTML = items.length ? items.map(t => {
+    const pri = t.priority || 'medium';
+    const cat = t.category || 'general';
+    const isOverdue = !t.done && t.date && t.date < todayStr();
+    const isToday = !t.done && t.date && t.date === todayStr();
+    const statusLabel = t.done ? 'Completed' : isOverdue ? `Overdue \u00b7 ${escHtml(t.date)}` : isToday ? 'Due today' : t.date ? escHtml(t.date) : 'Someday';
+    return `<article class="card todo-item todo-priority-${pri} ${todoDue(t) ? 'todo-due' : ''} ${isOverdue ? 'todo-overdue' : ''}" data-todo-id="${t.id}">
+      <div class="card-heading">
+        <div class="todo-title-row">
+          ${!t.done && !t.archived ? `<button class="todo-check-btn" onclick="changeTodo(${t.id}, 'done')" title="Mark done"><svg class="icon"><use href="#i-check"/></svg></button>` : ''}
+          <h3>${escHtml(t.name)}</h3>
+        </div>
+        <div class="todo-badges">
+          <span class="todo-priority-badge priority-${pri}">${PRIORITY_EMOJI[pri]} ${PRIORITY_LABEL[pri]}</span>
+          <span class="todo-category-badge">${CATEGORY_EMOJI[cat]} ${CATEGORY_LABEL[cat]}</span>
+          <span class="small-pill">${statusLabel}</span>
+        </div>
+      </div>
+      ${t.notes ? `<p>${escHtml(t.notes)}</p>` : ''}
+      <div class="todo-actions">
+        <span>${t.minutes} min</span>
+        ${!t.done && !t.archived ? `
+          <button class="btn btn-primary" onclick="startTodo(${t.id})">Start \u2197</button>
+          <button class="text-button" onclick="changeTodo(${t.id}, 'done')">Mark done</button>
+          <button class="text-button" onclick="changeTodo(${t.id}, 'tomorrow')">Tomorrow</button>
+          <button class="text-button" onclick="changeTodo(${t.id}, 'priority-up')" title="Increase priority">\u2b06 Priority</button>
+        ` : ''}
+        ${t.done && !t.archived ? `<button class="text-button" onclick="changeTodo(${t.id}, 'done')">Reopen</button>` : ''}
+        <button class="text-button" onclick="editTodo(${t.id})">Edit</button>
+        <button class="text-button" onclick="changeTodo(${t.id}, 'archive')">${t.archived ? 'Restore' : 'Archive'}</button>
+      </div>
+    </article>`;
+  }).join('') : '<div class="card todo-empty"><h3>A little breathing room.</h3><p>No items here yet. Add a task, or try another filter.</p></div>';
+}
+
+// ═══════════════════════════════════════
+// REMINDERS
+// ═══════════════════════════════════════
+function saveReminder() {
+  const name = document.getElementById('reminder-name').value.trim();
+  const date = document.getElementById('reminder-date').value;
+  const time = document.getElementById('reminder-time').value;
+  const notes = document.getElementById('reminder-notes').value.trim();
+  const repeat = document.getElementById('reminder-repeat').value;
+  if (!name) { showToast('Give your reminder a name.'); return; }
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { showToast('Choose a valid date.'); return; }
+  if (!state.reminders) state.reminders = [];
+  const fields = { name, notes, date, time, repeat };
+  const existing = state.reminders.find(r => r.id === editingReminderId);
+  if (existing) Object.assign(existing, fields);
+  else state.reminders.push({ id: Math.max(Date.now(), ...state.reminders.map(r => r.id)) + 1, ...fields, done: false, archived: false, createdAt: Date.now() });
+  save(); resetReminderForm(); renderReminders(); renderReminderNudge();
+  showToast(existing ? 'Reminder updated.' : 'Reminder set! I\u2019ll surface it when it\u2019s time.');
+}
+
+function resetReminderForm() {
+  editingReminderId = null;
+  clearForm(['reminder-name', 'reminder-notes', 'reminder-date', 'reminder-time']);
+  document.getElementById('reminder-repeat').value = 'none';
+  const titleEl = document.getElementById('reminder-form-title');
+  if (titleEl) titleEl.innerHTML = '<svg class="icon" style="width:20px;height:20px;vertical-align:middle;margin-right:6px;"><use href="#i-clock"/></svg>Save a reminder';
+  setText('reminder-save', 'Set reminder');
+  const cancelBtn = document.getElementById('reminder-cancel');
+  if (cancelBtn) cancelBtn.hidden = true;
+}
+
+function editReminder(id) {
+  if (!state.reminders) return;
+  const item = state.reminders.find(r => r.id === id); if (!item) return;
+  editingReminderId = id;
+  document.getElementById('reminder-name').value = item.name;
+  document.getElementById('reminder-notes').value = item.notes || '';
+  document.getElementById('reminder-date').value = item.date;
+  document.getElementById('reminder-time').value = item.time || '';
+  document.getElementById('reminder-repeat').value = item.repeat || 'none';
+  const titleEl = document.getElementById('reminder-form-title');
+  if (titleEl) titleEl.innerHTML = '<svg class="icon" style="width:20px;height:20px;vertical-align:middle;margin-right:6px;"><use href="#i-clock"/></svg>Edit reminder';
+  setText('reminder-save', 'Save changes');
+  const cancelBtn = document.getElementById('reminder-cancel');
+  if (cancelBtn) cancelBtn.hidden = false;
+  document.getElementById('reminder-name').focus();
+  document.getElementById('reminder-name').scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+}
+
+function changeReminder(id, action) {
+  if (!state.reminders) return;
+  const item = state.reminders.find(r => r.id === id); if (!item) return;
+  if (action === 'done') {
+    item.done = !item.done;
+    if (item.done) item.completedAt = Date.now();
+    // Handle repeat: when marking done, schedule the next one if repeating
+    if (item.done && item.repeat && item.repeat !== 'none') {
+      const nextDate = new Date(item.date);
+      if (item.repeat === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+      else if (item.repeat === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+      else if (item.repeat === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+      const newReminder = { ...item, id: Date.now() + 1, date: localDate(nextDate), done: false, completedAt: undefined, createdAt: Date.now() };
+      state.reminders.push(newReminder);
+      showToast('Next reminder scheduled for ' + newReminder.date);
+    }
+  }
+  if (action === 'archive') item.archived = !item.archived;
+  if (action === 'tomorrow') { const day = new Date(); day.setDate(day.getDate() + 1); item.date = localDate(day); }
+  save(); renderReminders(); renderReminderNudge();
+}
+
+function startReminderAsTodo(id) {
+  if (!state.reminders) return;
+  const item = state.reminders.find(r => r.id === id && !r.done && !r.archived); if (!item) return;
+  // Create a todo from this reminder
+  state.todos.push({
+    id: Math.max(Date.now(), ...state.todos.map(t => t.id)) + 1,
+    name: item.name,
+    notes: item.notes,
+    date: todayStr(),
+    minutes: 25,
+    priority: 'medium',
+    category: 'general',
+    done: false,
+    archived: false,
+    createdAt: Date.now()
+  });
+  item.done = true;
+  item.completedAt = Date.now();
+  save(); renderTodos(); renderReminders(); renderReminderNudge();
+  showToast('Added to your tasks! Switch to My Tasks to start it.');
+}
+
+function renderReminders() {
+  const filterEl = document.getElementById('reminder-filter');
+  if (!filterEl) return;
+  const filter = filterEl.value || 'upcoming';
+  if (!state.reminders) state.reminders = [];
+  const today = todayStr();
+
+  let items = state.reminders.filter(r => {
+    if (r.archived) return false;
+    if (filter === 'done') return r.done;
+    if (r.done) return false;
+    if (filter === 'today') return r.date === today;
+    if (filter === 'overdue') return r.date < today;
+    return true; // upcoming = all open
+  });
+
+  items.sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || (a.time || '').localeCompare(b.time || '') || a.id - b.id);
+
+  setText('reminder-count', `${items.length} ${items.length === 1 ? 'reminder' : 'reminders'}`);
+
+  const listEl = document.getElementById('reminder-list');
+  if (!listEl) return;
+
+  const REPEAT_LABEL = { none: '', daily: '\u{1f501} Daily', weekly: '\u{1f501} Weekly', monthly: '\u{1f501} Monthly' };
+
+  listEl.innerHTML = items.length ? items.map(r => {
+    const isOverdue = !r.done && r.date && r.date < today;
+    const isToday = !r.done && r.date === today;
+    const statusLabel = r.done ? 'Completed' : isOverdue ? 'Overdue' : isToday ? 'Due today' : escHtml(r.date);
+    const repeatLabel = REPEAT_LABEL[r.repeat || 'none'];
+    return `<article class="card todo-item reminder-item ${isOverdue ? 'todo-overdue reminder-overdue' : ''} ${isToday ? 'reminder-today' : ''}">
+      <div class="card-heading">
+        <div class="todo-title-row">
+          ${!r.done ? `<button class="todo-check-btn reminder-check-btn" onclick="changeReminder(${r.id}, 'done')" title="Mark done"><svg class="icon"><use href="#i-check"/></svg></button>` : ''}
+          <h3><svg class="icon" style="width:16px;height:16px;vertical-align:middle;margin-right:4px;opacity:0.6;"><use href="#i-clock"/></svg>${escHtml(r.name)}</h3>
+        </div>
+        <div class="todo-badges">
+          <span class="small-pill ${isOverdue ? 'pill-overdue' : isToday ? 'pill-today' : ''}">${statusLabel}</span>
+          ${r.time ? `<span class="small-pill">\u{1f552} ${escHtml(r.time)}</span>` : ''}
+          ${repeatLabel ? `<span class="small-pill pill-repeat">${repeatLabel}</span>` : ''}
+        </div>
+      </div>
+      ${r.notes ? `<p>${escHtml(r.notes)}</p>` : ''}
+      <div class="todo-actions">
+        ${!r.done ? `
+          <button class="btn btn-primary" onclick="startReminderAsTodo(${r.id})">Start as task \u2197</button>
+          <button class="text-button" onclick="changeReminder(${r.id}, 'done')">Mark done</button>
+          <button class="text-button" onclick="changeReminder(${r.id}, 'tomorrow')">Snooze to tomorrow</button>
+        ` : `
+          <button class="text-button" onclick="changeReminder(${r.id}, 'done')">Reopen</button>
+        `}
+        <button class="text-button" onclick="editReminder(${r.id})">Edit</button>
+        <button class="text-button" onclick="changeReminder(${r.id}, 'archive')">Archive</button>
+      </div>
+    </article>`;
+  }).join('') : '<div class="card todo-empty"><h3>All clear.</h3><p>No reminders here. Save one for something you want to remember later.</p></div>';
+}
+
+// ═══════════════════════════════════════
+// RANDOM TASK PICKER — "What should I do?"
+// ═══════════════════════════════════════
+function suggestRandomTask() {
+  const resultEl = document.getElementById('random-pick-result');
+  if (!resultEl) return;
+
+  // Gather candidates from both todos and reminders
+  const todoCandidates = state.todos.filter(t => !t.done && !t.archived).map(t => ({ ...t, source: 'todo' }));
+  const reminderCandidates = (state.reminders || []).filter(r => !r.done && !r.archived && r.date <= todayStr()).map(r => ({ ...r, source: 'reminder' }));
+  const allCandidates = [...todoCandidates, ...reminderCandidates];
+
+  if (!allCandidates.length) {
+    resultEl.hidden = false;
+    resultEl.innerHTML = '<div class="random-pick-empty"><p>Your lists are clear! Add some tasks or reminders first.</p></div>';
+    resultEl.classList.add('pick-animate');
+    setTimeout(() => resultEl.classList.remove('pick-animate'), 600);
+    return;
+  }
+
+  // Weighted random: urgent/overdue items get more weight
+  const weighted = [];
+  allCandidates.forEach(item => {
+    let weight = 1;
+    if (item.priority === 'urgent') weight = 4;
+    else if (item.priority === 'high') weight = 3;
+    else if (item.date && item.date <= todayStr()) weight = 3;
+    else if (item.priority === 'medium') weight = 2;
+    for (let i = 0; i < weight; i++) weighted.push(item);
+  });
+
+  const picked = weighted[Math.floor(Math.random() * weighted.length)];
+  const pri = picked.priority || 'medium';
+
+  resultEl.hidden = false;
+  resultEl.classList.add('pick-animate');
+  setTimeout(() => resultEl.classList.remove('pick-animate'), 600);
+
+  if (picked.source === 'todo') {
+    resultEl.innerHTML = `<div class="random-pick-card">
+      <div class="random-pick-label">Here\u2019s your next move:</div>
+      <h3>${PRIORITY_EMOJI[pri]} ${escHtml(picked.name)}</h3>
+      ${picked.notes ? `<p>${escHtml(picked.notes)}</p>` : ''}
+      <div class="random-pick-meta">
+        <span>${CATEGORY_EMOJI[picked.category || 'general']} ${CATEGORY_LABEL[picked.category || 'general']}</span>
+        <span>\u{23f1} ${picked.minutes} min</span>
+        <span>${PRIORITY_LABEL[pri]} priority</span>
+      </div>
+      <div class="random-pick-actions">
+        <button class="btn btn-primary" onclick="startTodo(${picked.id})">Let\u2019s do this \u2197</button>
+        <button class="btn btn-ghost" onclick="suggestRandomTask()">Pick another</button>
+      </div>
+    </div>`;
+  } else {
+    resultEl.innerHTML = `<div class="random-pick-card">
+      <div class="random-pick-label">This reminder is calling:</div>
+      <h3>\u{1f552} ${escHtml(picked.name)}</h3>
+      ${picked.notes ? `<p>${escHtml(picked.notes)}</p>` : ''}
+      <div class="random-pick-meta">
+        <span>Due: ${escHtml(picked.date)}</span>
+        ${picked.time ? `<span>At: ${escHtml(picked.time)}</span>` : ''}
+      </div>
+      <div class="random-pick-actions">
+        <button class="btn btn-primary" onclick="startReminderAsTodo(${picked.id})">Start as task \u2197</button>
+        <button class="btn btn-ghost" onclick="suggestRandomTask()">Pick another</button>
+      </div>
+    </div>`;
+  }
+}
+
+// Keep the old suggestTodo for backward compat (used nowhere now but safe to keep)
+function suggestTodo() { suggestRandomTask(); }
+
+function renderReminderNudge() {
+  const el = document.getElementById('today-reminders'); if (!el) return;
+  const todoItems = sortedTodos();
+  const todoDueItems = todoItems.filter(todoDue);
+  const reminderDueItems = (state.reminders || []).filter(r => !r.done && !r.archived && r.date <= todayStr());
+  const allDue = [...todoDueItems.map(t => ({ ...t, source: 'todo' })), ...reminderDueItems.map(r => ({ ...r, source: 'reminder' }))];
+  const next = allDue[0] || (todoItems.length ? { ...todoItems[0], source: 'todo' } : null);
+  const dueCount = allDue.length;
+
+  if (next) {
+    const startBtn = next.source === 'todo'
+      ? `<button class="text-button" onclick="startTodo(${next.id})">Start \u2197</button>`
+      : `<button class="text-button" onclick="startReminderAsTodo(${next.id})">Start \u2197</button>`;
+    el.innerHTML = `<div><span class="eyebrow">${dueCount ? `${dueCount} ITEM${dueCount === 1 ? '' : 'S'} NEED ATTENTION` : 'SOMETHING FOR LATER'}</span><strong>${escHtml(next.name)}</strong></div>${startBtn}<a class="text-button" href="/todos" data-page="todos">See your list \u2197</a>`;
+  } else {
+    el.innerHTML = '<a class="text-button" href="/todos" data-page="todos">Got something on your mind? Save it for later \u2197</a>';
+  }
+}
+

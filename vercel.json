@@ -32,6 +32,10 @@
     {
       "source": "/account",
       "destination": "/index.html"
+    },
+    {
+      "source": "/todos",
+      "destination": "/index.html"
     }
   ]
 }
