@@ -57,7 +57,8 @@ Point your favorite web browser to:
 
 | Page | Route | What you'll find |
 | --- | --- | --- |
-| 🏡 **Today** | `/` | One clear task to start, automatic work timer, and optional daily stats |
+| 🏡 **Overview** | `/` | Daily stats, focus timer, upcoming schedule, and summaries across your workspace |
+| ⏱️ **Work & reflect** | `/work` | Start a task, track elapsed time, and save your reflection |
 | 📅 **Timetable** | `/timetable` | Time-blocking without the anxiety |
 | 📖 **Journal** | `/journal` | Space to reflect, breathe, and celebrate micro-wins |
 | 📊 **My Progress** | `/progress` | 30-day activity heatmap and your glorious streak |
@@ -114,6 +115,6 @@ In Supabase Authentication → URL Configuration, allow `http://127.0.0.1:4174/a
 
 ## To-do, reminders, and learning from work
 
-Use `/todos` to capture tasks with optional reminder dates and planned minutes. Due items appear on Today; choose “Pick a task for me” when unsure what to do. Start opens the work timer immediately. Items can be completed, reopened, moved to tomorrow, or archived and restored. Reminders are in-app only, without background notifications.
+Use `/todos` to capture tasks with optional reminder dates and planned minutes. Due items appear on Work & reflect and are summarized on Overview; choose “Pick a task for me” when unsure what to do. Start opens the work timer immediately. Items can be completed, reopened, moved to tomorrow, or archived and restored. Reminders are in-app only, without background notifications.
 
-Finish & reflect stops timing before asking what you did, where you worked, whether it was worthwhile, mistakes or obstacles, and one lesson for next time. Reflections appear in the journal; the latest three lessons are available on Today. Older logs remain compatible. To-dos and reflections use the existing private Supabase workspace, so no new table migration is needed.
+Finish & reflect stops timing before asking what you did, where you worked, whether it was worthwhile, mistakes or obstacles, and one lesson for next time. Reflections appear in the journal; the latest three lessons are available on Work & reflect, with the latest lesson summarized on Overview. Older logs remain compatible. To-dos and reflections use the existing private Supabase workspace, so no new table migration is needed.

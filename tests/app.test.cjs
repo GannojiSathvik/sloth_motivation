@@ -90,7 +90,7 @@ test('invalid time ranges cannot create an invisible block', () => {
   a.element('task-date').value = '2026-10-27';
   a.run('saveTask()');
   assert.equal(a.run('state.tasks.length'), 0);
-  assert.match(a.element('toast').textContent, /end time after/);
+  assert.match(a.element('task-error').textContent, /end time after/);
 });
 
 test('daily balance renders actual completed duration consistently', () => {
@@ -177,4 +177,21 @@ test('saved task starts timing, saves lessons, and completes only after reflecti
 test('old work logs render without reflection fields and user lessons are escaped', () => {
   const a=app(); assert.equal(a.run("reflectionDetails({})"),'');
   assert.match(a.run("reflectionDetails({lesson:'<script>bad</script>'})"), /&lt;script&gt;/);
+});
+
+test('time-block form supplies valid defaults and explains missing names inline', () => {
+  const a=app(); a.run('openAddTask()');
+  assert.ok(a.element('task-start').value<a.element('task-end').value);
+  assert.ok(a.element('task-date').value);
+  a.run('saveTask()'); assert.equal(a.run('state.tasks.length'),0);
+  assert.match(a.element('task-error').textContent,/task name/);
+  a.element('task-name').value='Practice DP'; a.run('saveTask()');
+  assert.equal(a.run('state.tasks.length'),1);
+});
+test('overview summarizes reminders and reflections and work has its own route', () => {
+  const a=app(); a.run("state.todos=[{id:1,name:'Study',date:todayStr(),minutes:25}]; state.workLogs=[{taskName:'DP',lesson:'Check base cases',date:todayStr()}]; renderOverviewFeatures()");
+  assert.match(a.element('overview-features').innerHTML,/1 reminders due/);
+  assert.match(a.element('overview-features').innerHTML,/Check base cases/);
+  assert.equal(a.run("pageFromPath('/work')"),'work');
+  assert.equal(a.run('PAGES.dashboard.title'),'Overview');
 });

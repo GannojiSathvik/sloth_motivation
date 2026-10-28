@@ -36,6 +36,10 @@
     {
       "source": "/todos",
       "destination": "/index.html"
+    },
+    {
+      "source": "/work",
+      "destination": "/index.html"
     }
   ]
 }

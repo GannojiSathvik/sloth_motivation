@@ -426,7 +426,8 @@ function updateClock() {
 // PAGE ROUTING
 // ═══════════════════════════════════════
 const PAGES = {
-  dashboard: { path: '/', title: 'Today' },
+  dashboard: { path: '/', title: 'Overview' },
+  work: { path: '/work', title: 'Work & reflect' },
   timetable: { path: '/timetable', title: 'Timetable' },
   journal: { path: '/journal', title: 'Journal' },
   progress: { path: '/progress', title: 'My progress' },
@@ -458,6 +459,7 @@ function renderPage(page, { focus = true } = {}) {
   document.title = `${PAGES[page].title} — SlothMotivate`;
 
   if (page === 'dashboard') updateDashboard();
+  if (page === 'work') renderWork();
   if (page === 'timetable') renderTimetable();
   if (page === 'journal') renderJournal();
   if (page === 'planner') initPlanner();
@@ -524,6 +526,12 @@ function openAddTask() {
   const dp = document.getElementById('timetable-date');
   document.getElementById('task-date').value = dp.value || todayStr();
   if (!document.getElementById('tab-timetable').classList.contains('active')) document.getElementById('task-date').value = todayStr();
+  setTaskError('');
+  const now = new Date();
+  const minute = Math.min(1409, now.getHours()*60+now.getMinutes());
+  const time = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+  if (!document.getElementById('task-start').value) document.getElementById('task-start').value=time(minute);
+  if (!document.getElementById('task-end').value) document.getElementById('task-end').value=time(minute+30);
   openModal('modal-add-task');
 }
 
@@ -533,10 +541,12 @@ function saveTask() {
   const end   = document.getElementById('task-end').value;
   const date  = document.getElementById('task-date').value;
   if (!name || !start || !end || !date) {
-    alert('Please fill in Name, Start, End, and Date.');
+    const missing = !name ? ['task-name','Add a task name.'] : !start ? ['task-start','Choose a start time.'] : !end ? ['task-end','Choose an end time.'] : ['task-date','Choose a date.'];
+    setTaskError(missing[1],missing[0]);
     return;
   }
-  if (end <= start) { showToast('Choose an end time after the start time.'); return; }
+  if (end <= start) { setTaskError('Choose an end time after the start time.','task-end'); return; }
+  setTaskError('');
   const linksRaw = document.getElementById('task-links').value.trim();
   const links = linksRaw ? linksRaw.split('\n').map(l => l.trim()).filter(Boolean) : [];
 
@@ -1339,6 +1349,7 @@ function renderWork() {
   renderWorkDetails();
   renderReminderNudge();
   renderWorkLessons();
+  renderOverviewFeatures();
   const latest = state.workLogs[state.workLogs.length - 1];
   document.getElementById('recent-work-strip').innerHTML = latest ? `<span>LAST SESSION</span><strong>${escHtml(latest.taskName)}</strong><span>${durationLabel(latest.actualMs)} tracked · ${escHtml(latest.where)}</span><a class="text-button" href="/journal" data-page="journal">View work log ↗</a>` : '';
 }
@@ -1372,7 +1383,7 @@ function startWork(taskId) {
   if (state.focus.endAt) state.focus.overlapsWork = true;
   state.workSession = { id: now, taskId: task.id, taskName: task.name, desc: task.desc || '', links: task.links || [], plannedMinutes, startedAt: now, endedAt: null, pausedAt: null, pausedMs: 0 };
   save();
-  navigateToPage('dashboard');
+  navigateToPage('work');
   renderWork();
 }
 function pauseWork() {
@@ -1519,7 +1530,7 @@ function acceptDailyPlan() {
   const base = Math.max(Date.now(), ...state.tasks.map(t=>Number(t.id)||0)) + 1;
   state.tasks.push(...blocks.map((block,i)=>({...block,id:base+i,date:draft.date,links:[],status:'pending',source:'gemini'})));
   save(); plannerDraft = null;
-  document.getElementById('planner-preview').innerHTML = '<div class="planner-placeholder"><h2>Your day is ready.</h2><p>Your blocks are now in the timetable. Head to Today to start a task.</p><a class="btn btn-primary" href="/" data-page="dashboard">Start working ↗</a></div>';
+  document.getElementById('planner-preview').innerHTML = '<div class="planner-placeholder"><h2>Your day is ready.</h2><p>Your blocks are now in the timetable. Head to Work & reflect to start a task.</p><a class="btn btn-primary" href="/work" data-page="work">Start working ↗</a></div>';
   document.getElementById('timetable-date').value=draft.date;
   updateDashboard(); navigateToPage('timetable');
   showToast(`${blocks.length} blocks added. Your day has a little more direction.`);
@@ -1687,7 +1698,7 @@ function startTodo(id) {
   const t=state.todos.find(t=>t.id===id&&!t.done&&!t.archived); if (!t) return;
   const now=Date.now(); if (state.focus.endAt) state.focus.overlapsWork=true;
   state.workSession={id:now,taskId:null,todoId:id,taskName:t.name,desc:t.notes||'',links:[],plannedMinutes:t.minutes||25,startedAt:now,endedAt:null,pausedAt:null,pausedMs:0};
-  save(); navigateToPage('dashboard');
+  save(); navigateToPage('work');
 }
 function suggestTodo() {
   const all=sortedTodos(), due=all.filter(todoDue), pool=due.length?due:all;
@@ -1713,4 +1724,23 @@ function reflectionDetails(log) {
 function renderWorkLessons() {
   const lessons=state.workLogs.filter(l=>l.lesson||l.mistakes).slice(-3).reverse();
   document.getElementById('work-lessons-list').innerHTML=lessons.length?lessons.map(l=>`<div class="lesson-item"><strong>${escHtml(l.taskName)}</strong>${reflectionDetails(l)}</div>`).join(''):'<p>After a session, save a lesson here to remember before your next task.</p>';
+}
+
+function setTaskError(message, field) {
+  const el=document.getElementById('task-error'); el.textContent=message; el.hidden=!message;
+  for (const id of ['task-name','task-start','task-end','task-date']) document.getElementById(id).setAttribute('aria-invalid',String(id===field));
+  if (field) document.getElementById(field).focus();
+}
+function renderOverviewFeatures() {
+  const el=document.getElementById('overview-features'); if (!el) return;
+  const open=sortedTodos(), due=open.filter(todoDue), logs=state.workLogs.filter(l=>l.date===todayStr());
+  const lesson=state.workLogs.slice().reverse().find(l=>l.lesson||l.mistakes);
+  const session=state.workSession;
+  const cards=[
+    {page:'work',path:'/work',label:session?'SESSION IN PROGRESS':'WORK & REFLECT',title:session?session.taskName:`${logs.length} sessions today`,body:session?'Your timer is saved. Continue your task or finish your reflection.':'Start a task, track your time, and capture what you learned.',action:session?'Continue session':'Start working'},
+    {page:'todos',path:'/todos',label:'TO-DO & REMINDERS',title:`${open.length} things to do`,body:due.length?`${due.length} reminders due · ${due[0].name}`:'A home for the things you want to come back to.',action:'Open your list'},
+    {page:'journal',path:'/journal',label:'REFLECTIONS & LESSONS',title:lesson?'Remember for next time':'Make your progress count',body:lesson?(lesson.lesson||lesson.mistakes):'Your work logs, mistakes, and lessons all have a place here.',action:'Read your journal'},
+    {page:'planner',path:'/planner',label:'AI PLANNER',title:'Give your day a little direction',body:`${state.tasks.filter(t=>t.date===todayStr()&&t.source==='gemini').length} AI-planned blocks today. Build a plan around what matters.`,action:'Plan with Gemini'}
+  ];
+  el.innerHTML=cards.map(c=>`<a class="card overview-feature" href="${c.path}" data-page="${c.page}"><span class="eyebrow">${c.label}</span><h2>${escHtml(c.title)}</h2><p>${escHtml(c.body)}</p><span class="text-button">${c.action} ↗</span></a>`).join('');
 }
