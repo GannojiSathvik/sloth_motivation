@@ -366,7 +366,6 @@ let state = {
   workSession: null,
   workLogs: [],
   plannerPreferences: {},
-  todos: [],
   focus: { remaining: 1500, endAt: null, completed: false },
   focusSessions: [],
   tasks: [],       // { id, name, desc, start, end, category, links, date, status: 'pending'|'done'|'skipped' }
@@ -432,7 +431,6 @@ const PAGES = {
   progress: { path: '/progress', title: 'My progress' },
   quotes: { path: '/fuel', title: 'Daily fuel' },
   planner: { path: '/planner', title: 'AI planner' },
-  todos: { path: '/todos', title: 'To-do & reminders' },
   account: { path: '/account', title: 'Your account' },
 };
 
@@ -461,7 +459,6 @@ function renderPage(page, { focus = true } = {}) {
   if (page === 'timetable') renderTimetable();
   if (page === 'journal') renderJournal();
   if (page === 'planner') initPlanner();
-  if (page === 'todos') renderTodos();
   if (page === 'progress') renderProgress();
   if (page === 'quotes') renderFuelSlide();
   else if (fuelTimer) {
@@ -1337,8 +1334,6 @@ function renderWork() {
   }
   document.getElementById('today-work-list').innerHTML = pending.length ? pending.slice(0, 6).map(t => `<div class="today-work-item"><div><strong>${escHtml(t.name)}</strong><small>${t.start} – ${t.end} · ${taskDuration(t)} min planned</small></div><button class="text-button" onclick="startWork(${t.id})" ${session ? 'disabled' : ''}>Start ↗</button></div>`).join('') : '<div class="schedule-empty"><h3>A small start is enough.</h3><p>Add a task yourself, or let the AI planner map out your day.</p><a class="text-button" href="/planner" data-page="planner">Plan my day ↗</a></div>';
   renderWorkDetails();
-  renderReminderNudge();
-  renderWorkLessons();
   const latest = state.workLogs[state.workLogs.length - 1];
   document.getElementById('recent-work-strip').innerHTML = latest ? `<span>LAST SESSION</span><strong>${escHtml(latest.taskName)}</strong><span>${durationLabel(latest.actualMs)} tracked · ${escHtml(latest.where)}</span><a class="text-button" href="/journal" data-page="journal">View work log ↗</a>` : '';
 }
@@ -1403,16 +1398,12 @@ function saveWorkLog() {
   if (!did || !where) { showToast('Tell us what you did and where you worked.'); return; }
   const outcome = document.getElementById('work-outcome').value === 'done' ? 'done' : 'pending';
   const comparison = workComparison(session);
-  state.workLogs.push({ ...session, ...comparison, id: session.id, did, where, outcome, worth: ['yes','partly','no'].includes(document.getElementById('work-worth').value) ? document.getElementById('work-worth').value : 'yes', mistakes: document.getElementById('work-mistakes').value.trim(), lesson: document.getElementById('work-lesson').value.trim(), date: localDate(new Date(session.startedAt)) });
+  state.workLogs.push({ ...session, ...comparison, id: session.id, did, where, outcome, date: localDate(new Date(session.startedAt)) });
   const task = state.tasks.find(t => t.id === session.taskId);
   if (task) task.status = outcome;
-  const todo = state.todos.find(item => item.id === session.todoId);
-  if (todo) todo.done = outcome === 'done';
   state.workSession = null;
   save(); closeModal('modal-work-log');
-  clearForm(['work-did', 'work-where', 'work-name', 'work-mistakes', 'work-lesson']);
-  document.getElementById('work-worth').value='yes';
-  document.getElementById('work-outcome').value='done';
+  clearForm(['work-did', 'work-where', 'work-name']);
   updateDashboard(); renderWork(); renderJournal();
   showToast('Work logged. Your time comparison is saved automatically.');
 }
@@ -1421,7 +1412,7 @@ function renderWorkHistory() {
   const logs = state.workLogs.filter(log => log.date === date).slice().reverse();
   const container = document.getElementById('work-history');
   if (!container) return;
-  container.innerHTML = logs.length ? `<h2 class="card-title">Your tracked work</h2>` + logs.map(log => `<article class="card work-log-card"><div class="card-heading"><h3>${escHtml(log.taskName)}</h3><span class="small-pill">${durationLabel(log.actualMs)} tracked</span></div><p>${escHtml(log.did)}</p>${reflectionDetails(log)}<div class="work-log-meta"><span>Where: ${escHtml(log.where)}</span><span>${new Date(log.startedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} → ${new Date(log.endedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span></div><div class="work-log-meta"><span>${log.plannedMinutes} min planned · ${escHtml(log.label)}</span><span>${log.outcome === 'done' ? 'Completed' : 'More to do'}</span></div></article>`).join('') : '';
+  container.innerHTML = logs.length ? `<h2 class="card-title">Your tracked work</h2>` + logs.map(log => `<article class="card work-log-card"><div class="card-heading"><h3>${escHtml(log.taskName)}</h3><span class="small-pill">${durationLabel(log.actualMs)} tracked</span></div><p>${escHtml(log.did)}</p><div class="work-log-meta"><span>Where: ${escHtml(log.where)}</span><span>${new Date(log.startedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} → ${new Date(log.endedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span></div><div class="work-log-meta"><span>${log.plannedMinutes} min planned · ${escHtml(log.label)}</span><span>${log.outcome === 'done' ? 'Completed' : 'More to do'}</span></div></article>`).join('') : '';
 }
 
 let plannerDraft = null;
@@ -1630,10 +1621,9 @@ function init() {
     getState: () => state,
     switchAccount: (userId, remoteState) => {
       const guest = JSON.parse(localStorage.getItem('sm_state') || '{}');
-      resetTodoForm();
       activeStorageKey = userId ? `sm_state:${userId}` : 'sm_state';
       const local = JSON.parse(localStorage.getItem(activeStorageKey) || '{}');
-      const baseline = { todos: [], tasks: [], journal: [], goals: [], history: {}, streak: 0, workLogs: [], workSession: null, focusSessions: [], focus: { remaining: 1500, endAt: null, completed: false }, plannerPreferences: {}, currentQuoteIdx: 0, currentJournalRating: 3 };
+      const baseline = { tasks: [], journal: [], goals: [], history: {}, streak: 0, workLogs: [], workSession: null, focusSessions: [], focus: { remaining: 1500, endAt: null, completed: false }, plannerPreferences: {}, currentQuoteIdx: 0, currentJournalRating: 3 };
       const source = remoteState || (Object.keys(local).length ? local : userId ? guest : {});
       state = { ...baseline, ...source, workSession: local.workSession || (!userId ? source.workSession : null), focus: local.focus || baseline.focus };
       localStorage.setItem(activeStorageKey, JSON.stringify(state));
@@ -1648,69 +1638,3 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
-
-let editingTodoId = null;
-function todoDue(t) { return !t.done && !t.archived && Boolean(t.date) && t.date <= todayStr(); }
-function sortedTodos() { return state.todos.filter(t=>!t.done&&!t.archived).slice().sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999') || a.id-b.id); }
-function resetTodoForm() {
-  editingTodoId=null; clearForm(['todo-name','todo-notes','todo-date']);
-  document.getElementById('todo-minutes').value='25';
-  document.getElementById('todo-cancel').hidden=true; setText('todo-form-title','Save a thought');
-}
-function saveTodo() {
-  const name=document.getElementById('todo-name').value.trim(), date=document.getElementById('todo-date').value, minutes=Number(document.getElementById('todo-minutes').value);
-  if (!name || !Number.isInteger(minutes) || minutes<1 || minutes>1440) { showToast('Name your task and choose 1–1440 minutes.'); return; }
-  if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)))) { showToast('Choose a valid date.'); return; }
-  const fields={name,date,minutes,notes:document.getElementById('todo-notes').value.trim()};
-  const item=state.todos.find(t=>t.id===editingTodoId);
-  if (item) Object.assign(item,fields);
-  else state.todos.push({id:Math.max(Date.now(),...state.todos.map(t=>Number(t.id)||0))+1,...fields,done:false,archived:false});
-  save(); resetTodoForm(); renderTodos(); renderReminderNudge(); showToast('Saved for later.');
-}
-function editTodo(id) {
-  const item=state.todos.find(t=>t.id===id); if (!item) return;
-  editingTodoId=id;
-  for (const key of ['name','notes','date','minutes']) document.getElementById('todo-'+key).value=item[key]||'';
-  setText('todo-form-title','Edit your task'); document.getElementById('todo-cancel').hidden=false;
-  document.getElementById('todo-name').focus(); document.getElementById('todo-name').scrollIntoView?.({block:'center',behavior:'smooth'});
-}
-function changeTodo(id,action) {
-  const t=state.todos.find(t=>t.id===id); if (!t) return;
-  if (state.workSession?.todoId===id) { showToast('Finish your current session first.'); return; }
-  if (action==='done') t.done=!t.done;
-  if (action==='archive') t.archived=!t.archived;
-  if (action==='tomorrow') { const d=new Date(); d.setDate(d.getDate()+1); t.date=localDate(d); }
-  save(); renderTodos(); renderReminderNudge();
-}
-function startTodo(id) {
-  if (state.workSession) { showToast('Finish your current session first.'); return; }
-  const t=state.todos.find(t=>t.id===id&&!t.done&&!t.archived); if (!t) return;
-  const now=Date.now(); if (state.focus.endAt) state.focus.overlapsWork=true;
-  state.workSession={id:now,taskId:null,todoId:id,taskName:t.name,desc:t.notes||'',links:[],plannedMinutes:t.minutes||25,startedAt:now,endedAt:null,pausedAt:null,pausedMs:0};
-  save(); navigateToPage('dashboard');
-}
-function suggestTodo() {
-  const all=sortedTodos(), due=all.filter(todoDue), pool=due.length?due:all;
-  if (!pool.length) { setText('todo-suggestion-text','Your list is clear. Add something you want to do later.'); return; }
-  const t=pool[Math.floor(Math.random()*pool.length)];
-  document.getElementById('todo-suggestion-text').innerHTML=`<strong>${escHtml(t.name)}</strong> · ${t.minutes} min <button class="text-button" onclick="startTodo(${t.id})">Start this ↗</button>`;
-}
-function renderTodos() {
-  const filter=document.getElementById('todo-filter').value||'open';
-  const items=state.todos.filter(t=>filter==='archived'?t.archived:!t.archived&&(filter==='done'?t.done:!t.done&&(filter==='due'?todoDue(t):filter==='later'?!todoDue(t):true))).slice().sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
-  setText('todo-count',`${items.length} items`); setText('todo-suggestion-text','Pick something you’ve been meaning to do.');
-  document.getElementById('todo-list').innerHTML=items.length?items.map(t=>`<article class="card todo-item"><div class="card-heading"><h3>${escHtml(t.name)}</h3><span class="small-pill">${t.done?'Completed':t.date?(todoDue(t)?'Due · ':'')+escHtml(t.date):'Someday'}</span></div><p>${escHtml(t.notes||'')}</p><div class="todo-actions"><span>${t.minutes} min</span>${!t.done&&!t.archived?`<button class="btn btn-primary" onclick="startTodo(${t.id})">Start ↗</button><button class="text-button" onclick="changeTodo(${t.id},'tomorrow')">Tomorrow</button>`:''}${!t.archived?`<button class="text-button" onclick="changeTodo(${t.id},'done')">${t.done?'Reopen':'Mark done'}</button>`:''}<button class="text-button" onclick="editTodo(${t.id})">Edit</button><button class="text-button" onclick="changeTodo(${t.id},'archive')">${t.archived?'Restore':'Archive'}</button></div></article>`).join(''):'<div class="card todo-item"><h3>A little breathing room.</h3><p>No items in this view. Save a task for later or try another view.</p></div>';
-}
-function renderReminderNudge() {
-  const el=document.getElementById('today-reminders'); if (!el) return;
-  const all=sortedTodos(),due=all.filter(todoDue),t=due[0]||all[0];
-  el.innerHTML=t?`<div><span class="eyebrow">${due.length?`${due.length} REMINDERS DUE`:'SAVED FOR LATER'}</span><strong>${escHtml(t.name)}</strong></div><button class="text-button" onclick="startTodo(${t.id})">Start ↗</button><a class="text-button" href="/todos" data-page="todos">See your list ↗</a>`:'<a class="text-button" href="/todos" data-page="todos">Something on your mind? Save it for later ↗</a>';
-}
-function reflectionDetails(log) {
-  const worth={yes:'Worthwhile',partly:'Partly worthwhile',no:'Not worthwhile this time'}[log.worth];
-  return `${worth?`<p class="reflection-detail"><strong>${worth}</strong></p>`:''}${log.mistakes?`<p class="reflection-detail"><strong>Mistakes / obstacles:</strong> ${escHtml(log.mistakes)}</p>`:''}${log.lesson?`<p class="reflection-detail"><strong>Next time:</strong> ${escHtml(log.lesson)}</p>`:''}`;
-}
-function renderWorkLessons() {
-  const lessons=state.workLogs.filter(l=>l.lesson||l.mistakes).slice(-3).reverse();
-  document.getElementById('work-lessons-list').innerHTML=lessons.length?lessons.map(l=>`<div class="lesson-item"><strong>${escHtml(l.taskName)}</strong>${reflectionDetails(l)}</div>`).join(''):'<p>After a session, save a lesson here to remember before your next task.</p>';
-}

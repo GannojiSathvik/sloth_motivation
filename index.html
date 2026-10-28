@@ -34,7 +34,6 @@
   <nav class="sidebar-nav" aria-label="Main navigation">
     <a class="nav-item active" data-page="dashboard" href="/"><svg class="icon"><use href="#i-grid"/></svg><span>Today</span><span class="nav-active-dot"></span></a>
     <a class="nav-item" data-page="timetable" href="/timetable"><svg class="icon"><use href="#i-calendar"/></svg><span>Timetable</span></a>
-    <a class="nav-item" data-page="todos" href="/todos"><svg class="icon"><use href="#i-book"/></svg><span>To-do & reminders</span></a>
     <a class="nav-item" data-page="journal" href="/journal"><svg class="icon"><use href="#i-book"/></svg><span>Journal</span></a>
     <a class="nav-item" data-page="progress" href="/progress"><svg class="icon"><use href="#i-chart"/></svg><span>My progress</span></a>
     <a class="nav-item" data-page="planner" href="/planner"><svg class="icon"><use href="#i-spark"/></svg><span>AI planner</span></a>
@@ -58,17 +57,17 @@
       <div class="work-layout">
         <div class="card work-card">
           <div class="current-tag"><span class="pulse-dot"></span><span id="work-status">READY WHEN YOU ARE</span></div>
-          <div id="work-picker"><label for="work-task">Choose something from your day</label><select class="input" id="work-task" onchange="selectWorkTask()"></select><div id="work-custom"><label for="work-name">What task are you doing?</label><input class="input" id="work-name" maxlength="200" placeholder="e.g. Practice two DSA problems"/><label for="work-planned">How many minutes are you aiming for?</label><input class="input" type="number" id="work-planned" min="1" max="1440" value="25"/></div></div>
+          <div id="work-picker"><label for="work-task">Choose something from your day</label><select class="input" id="work-task" onchange="selectWorkTask()"></select><div id="work-custom"><label for="work-name">Or, what are you working on?</label><input class="input" id="work-name" maxlength="200" placeholder="e.g. Practice two DSA problems"/><label for="work-planned">How many minutes are you aiming for?</label><input class="input" type="number" id="work-planned" min="1" max="1440" value="25"/></div></div>
           <div id="work-running-title" hidden><h2 id="work-title"></h2><p id="work-started"></p></div>
-          <div id="work-details" class="work-details" hidden></div><details class="work-details" id="work-lessons"><summary>Lessons for next time</summary><div id="work-lessons-list"></div></details>
+          <div id="work-details" class="work-details" hidden></div>
           <div class="work-time" id="work-elapsed" role="timer" aria-label="Tracked task time">00:00:00</div>
           <p class="work-caption" id="work-caption">Time starts when you do. Pauses don’t count.</p>
-          <div class="work-controls"><button class="btn btn-primary" id="work-start" onclick="startWork()">▶ Start task & timer</button><button class="btn btn-ghost" id="work-pause" onclick="pauseWork()" hidden>Pause</button><button class="btn btn-primary" id="work-finish" onclick="finishWork()" hidden>Finish & reflect ↗</button></div>
+          <div class="work-controls"><button class="btn btn-primary" id="work-start" onclick="startWork()">▶ Start task</button><button class="btn btn-ghost" id="work-pause" onclick="pauseWork()" hidden>Pause</button><button class="btn btn-primary" id="work-finish" onclick="finishWork()" hidden>Finish & reflect ↗</button></div>
           <p class="work-hint">When you finish, you’ll record what you did and where. Your time comparison is automatic.</p>
         </div>
         <div class="card today-list-card"><div class="card-heading"><h2 class="card-title">Your tasks today</h2><button class="text-button" onclick="openAddTask()">+ Add task</button></div><div id="today-work-list"></div><a class="text-button" href="/timetable" data-page="timetable">See your full timetable ↗</a></div>
       </div>
-      <div id="today-reminders" class="reminder-nudge"></div><div class="recent-work-strip" id="recent-work-strip"></div>
+      <div class="recent-work-strip" id="recent-work-strip"></div>
       <details class="advanced-overview"><summary>Daily stats, focus timer & inspiration <span>Show more +</span></summary>
       <div class="day-heading"><div class="section-label">Your day at a glance</div><span id="live-date" class="live-date"></span></div>
       <div class="metrics-grid">
@@ -110,18 +109,6 @@
         </form>
         <div class="card planner-preview" id="planner-preview" aria-live="polite"><div class="planner-placeholder"><svg class="icon"><use href="#i-spark"/></svg><h2>A day that works for you.</h2><p>Your plan will appear here. Edit anything, then add it to your timetable in one step.</p><div class="planner-steps"><span>01 &nbsp; Tell us your priorities</span><span>02 &nbsp; Review your plan</span><span>03 &nbsp; Start your first task</span></div></div></div>
       </div>
-    </section>
-    <section class="tab-panel" id="tab-todos">
-      <div class="page-header"><p class="eyebrow">MAKE ROOM IN YOUR HEAD</p><h1>Remember it. Do it later.</h1><p>Save a task now. Come back when you’re ready.</p></div>
-      <div class="todo-layout"><form class="card todo-capture" onsubmit="event.preventDefault(); saveTodo()">
-        <h2 id="todo-form-title">Save a thought</h2><label for="todo-name">What do you want to do?</label><input class="input" id="todo-name" required maxlength="200" placeholder="Practice arrays, read a chapter…"/>
-        <label for="todo-notes">Notes (optional)</label><textarea class="input" id="todo-notes" rows="3" maxlength="2000" placeholder="Where to start or what to prepare"></textarea>
-        <label for="todo-date">Remind me on (optional)</label><input class="input" id="todo-date" type="date"/>
-        <label for="todo-minutes">Planned minutes</label><input class="input" id="todo-minutes" type="number" min="1" max="1440" value="25" required/>
-        <div class="account-buttons"><button class="btn btn-primary" type="submit">Save task</button><button class="btn btn-ghost" id="todo-cancel" type="button" hidden onclick="resetTodoForm()">Cancel edit</button></div>
-        <p class="todo-help">Reminders appear in the app when due. No notifications are sent while the app is closed.</p></form>
-        <div><div class="card todo-suggestion"><h2>Not sure what to do?</h2><p id="todo-suggestion-text">Pick something you’ve been meaning to do.</p><button class="btn btn-ghost" onclick="suggestTodo()">Pick a task for me ↗</button></div>
-        <div class="todo-toolbar"><label for="todo-filter">Show</label><select class="input" id="todo-filter" onchange="renderTodos()"><option value="open">To do</option><option value="due">Due now</option><option value="later">Later & someday</option><option value="done">Completed</option><option value="archived">Archived</option></select><span id="todo-count" role="status"></span></div><div id="todo-list" class="todo-list"></div></div></div>
     </section>
     <section class="tab-panel" id="tab-account">
       <div class="dashboard-heading"><div><div class="eyebrow">YOUR PRIVATE WORKSPACE</div><h1>Your progress. <span>Saved.</span></h1><p>Sign in to keep your tasks, work logs, and reflections in Supabase.</p></div></div>
@@ -243,7 +230,7 @@
   </div>
 </main>
 
-<div class="modal-overlay" id="modal-work-log" onclick="closeModal('modal-work-log')"><div class="modal" onclick="event.stopPropagation()"><div class="modal-header"><h2>How did it go?</h2><button class="modal-close" onclick="closeModal('modal-work-log')">✕</button></div><form onsubmit="event.preventDefault(); saveWorkLog()"><div class="modal-body"><div id="work-log-summary" class="work-log-summary"></div><label for="work-did">What did you do?</label><textarea id="work-did" class="input textarea" rows="3" maxlength="3000" required placeholder="e.g. Solved two array problems and reviewed my mistakes"></textarea><label for="work-where">Where did you work?</label><input id="work-where" class="input" maxlength="300" required placeholder="e.g. LeetCode, VS Code, library, or a project link"/><label for="work-worth">Was this time worthwhile?</label><select id="work-worth" class="input"><option value="yes">Yes — useful progress</option><option value="partly">Partly — some useful progress</option><option value="no">Not this time</option></select><label for="work-mistakes">What mistakes or obstacles did you notice? (optional)</label><textarea id="work-mistakes" class="input textarea" rows="2" maxlength="2000" placeholder="No mistakes is a valid answer too"></textarea><label for="work-lesson">What will you do differently next time? (optional)</label><textarea id="work-lesson" class="input textarea" rows="2" maxlength="2000" placeholder="One practical lesson to remember"></textarea><label for="work-outcome">How did the task end?</label><select class="input" id="work-outcome"><option value="done">Completed</option><option value="pending">Made progress — still more to do</option></select></div><div class="modal-footer"><button type="button" class="btn btn-ghost" onclick="closeModal('modal-work-log')">Save later</button><button class="btn btn-primary" type="submit">Save work log</button></div></form></div></div>
+<div class="modal-overlay" id="modal-work-log" onclick="closeModal('modal-work-log')"><div class="modal" onclick="event.stopPropagation()"><div class="modal-header"><h2>How did it go?</h2><button class="modal-close" onclick="closeModal('modal-work-log')">✕</button></div><form onsubmit="event.preventDefault(); saveWorkLog()"><div class="modal-body"><div id="work-log-summary" class="work-log-summary"></div><label for="work-did">What did you do?</label><textarea id="work-did" class="input textarea" rows="3" maxlength="3000" required placeholder="e.g. Solved two array problems and reviewed my mistakes"></textarea><label for="work-where">Where did you work?</label><input id="work-where" class="input" maxlength="300" required placeholder="e.g. LeetCode, VS Code, library, or a project link"/><label for="work-outcome">How did the task end?</label><select class="input" id="work-outcome"><option value="done">Completed</option><option value="pending">Made progress — still more to do</option></select></div><div class="modal-footer"><button type="button" class="btn btn-ghost" onclick="closeModal('modal-work-log')">Save later</button><button class="btn btn-primary" type="submit">Save work log</button></div></form></div></div>
 
 <!-- MODALS -->
 <div class="modal-overlay" id="modal-add-task" onclick="closeModal('modal-add-task')">

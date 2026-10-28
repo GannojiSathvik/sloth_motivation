@@ -111,9 +111,3 @@ ISC © [Gannoji Sathvik](https://github.com/GannojiSathvik) — Free to use, ada
 Create a Web application OAuth client in Google Auth Platform. Its authorized redirect URI for this project is `https://tpxutrqowbufwztpzori.supabase.co/auth/v1/callback`. Save the client ID and secret in Supabase’s Google provider settings, never in frontend code. Use only the basic openid/email/profile scopes. If the Google app is in Testing, add your Google account as a test user.
 
 In Supabase Authentication → URL Configuration, allow `http://127.0.0.1:4174/account`, `http://localhost:4174/account`, and the exact deployed HTTPS `/account` URL. Set Site URL to the deployed site when available. The browser uses PKCE and returns to the same app origin. Google sign-in must finish in the browser where it started.
-
-## To-do, reminders, and learning from work
-
-Use `/todos` to capture tasks with optional reminder dates and planned minutes. Due items appear on Today; choose “Pick a task for me” when unsure what to do. Start opens the work timer immediately. Items can be completed, reopened, moved to tomorrow, or archived and restored. Reminders are in-app only, without background notifications.
-
-Finish & reflect stops timing before asking what you did, where you worked, whether it was worthwhile, mistakes or obstacles, and one lesson for next time. Reflections appear in the journal; the latest three lessons are available on Today. Older logs remain compatible. To-dos and reflections use the existing private Supabase workspace, so no new table migration is needed.

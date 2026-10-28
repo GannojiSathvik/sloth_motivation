@@ -155,26 +155,3 @@ test('saving a reflection records work and marks its task once', () => {
   assert.equal(a.run('state.workSession'),null);
   assert.equal(a.run('state.workLogs[0].where'),'LeetCode');
 });
-
-test('to-do capture persists, snoozes and archives without deleting', () => {
-  const a=app(); a.element('todo-name').value='Read chapter'; a.element('todo-minutes').value='20'; a.element('todo-date').value=a.run('todayStr()');
-  a.run('saveTodo(); load()'); assert.equal(a.run('state.todos.length'),1); assert.equal(a.run('todoDue(state.todos[0])'),true);
-  a.run("changeTodo(state.todos[0].id,'tomorrow')"); assert.equal(a.run('todoDue(state.todos[0])'),false);
-  a.run("changeTodo(state.todos[0].id,'archive')"); assert.equal(a.run('sortedTodos().length'),0);
-  a.run("changeTodo(state.todos[0].id,'archive')"); assert.equal(a.run('sortedTodos().length'),1);
-});
-test('saved task starts timing, saves lessons, and completes only after reflection', () => {
-  const a=app(); a.run("state.todos=[{id:1,name:'Arrays',notes:'Practice',minutes:25,date:'',done:false,archived:false}]; startTodo(1)");
-  assert.equal(a.run('state.workSession.todoId'),1); assert.ok(a.run('state.workSession.startedAt > 0'));
-  a.run("changeTodo(1,'archive')"); assert.equal(a.run('state.todos[0].archived'),false);
-  a.run('finishWork()'); assert.equal(a.run('state.todos[0].done'),false);
-  a.element('work-did').value='Solved a problem'; a.element('work-where').value='Desk'; a.element('work-outcome').value='done';
-  a.element('work-worth').value='partly'; a.element('work-mistakes').value='Missed an edge case'; a.element('work-lesson').value='Test empty inputs';
-  a.run('saveWorkLog(); load(); renderWorkLessons()');
-  assert.equal(a.run('state.todos[0].done'),true); assert.equal(a.run('state.workLogs[0].worth'),'partly');
-  assert.match(a.element('work-lessons-list').innerHTML,/Test empty inputs/);
-});
-test('old work logs render without reflection fields and user lessons are escaped', () => {
-  const a=app(); assert.equal(a.run("reflectionDetails({})"),'');
-  assert.match(a.run("reflectionDetails({lesson:'<script>bad</script>'})"), /&lt;script&gt;/);
-});
