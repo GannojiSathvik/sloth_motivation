@@ -36,3 +36,9 @@ test('quota errors and truncated AI responses do not produce an accepted plan', 
   await assert.rejects(generatePlan(request,{env,fetchImpl:async()=>({ok:false,status:429})}), /usage limit/);
   await assert.rejects(generatePlan(request,{env,fetchImpl:async()=>({ok:true,json:async()=>({candidates:[{finishReason:'MAX_TOKENS'}]})})}), /complete schedule/);
 });
+
+test('planner accepts optional context and bounds it before sending to Gemini', () => {
+  assert.equal(validateRequest({...request,context:' Beginner in arrays '}).context,'Beginner in arrays');
+  assert.equal(validateRequest(request).context,'');
+  assert.throws(()=>validateRequest({...request,context:'x'.repeat(501)}), /context/);
+});

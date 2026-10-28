@@ -23,7 +23,7 @@ function app() {
     return elements.get(id);
   };
   const context = vm.createContext({
-    console, Date, Math, URL,
+    console, Date, Math, URL, AbortController,
     document: { getElementById: element, querySelectorAll: () => [], querySelector: () => null, addEventListener() {}, createElement: () => element(Symbol()), body: { style: {} } },
     window: browserWindow, localStorage: { setItem: (k,v) => storage.set(k,v), getItem: k => storage.get(k) ?? null },
     setTimeout: () => 1, clearTimeout() {}, setInterval() {}, alert() {}
@@ -213,4 +213,15 @@ test('fourth completed focus offers long break and mode changes cannot discard r
 test('local-only HTML loads no Supabase client or account sign-in form', () => {
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
   assert.ok(!html.includes('src="/assets/cloud.js"')); assert.ok(!html.includes('account-google'));
+});
+
+
+test('planner never silently truncates a full-day request to the remaining afternoon', async () => {
+  const a=app();
+  a.run("const RealDate=Date; Date=class extends RealDate { constructor(...args) { super(...(args.length?args:[2026,9,28,15,43,0])); } }; var requests=0; fetch=async()=>{requests++; return {ok:true,json:async()=>({date:'2026-10-28',summary:'Plan',blocks:[],unscheduled:[]})};};");
+  for (const [id,value] of Object.entries({'planner-date':'2026-10-28','planner-brief':'Plan a student interview preparation day','planner-start':'09:00','planner-end':'18:00','planner-focus':'50'})) a.element(id).value=value;
+  await a.run('generateDailyPlan()');
+  assert.equal(a.run('requests'),0);
+  assert.match(a.element('planner-error').textContent,/already passed|earlier than/);
+  assert.equal(a.element('planner-start').value,'09:00');
 });

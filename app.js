@@ -1461,6 +1461,7 @@ function initPlanner() {
   if (!date.value) {
     date.value = todayStr(); date.min = todayStr();
     document.getElementById('planner-brief').value = preferences.brief || '';
+    document.getElementById('planner-detail-context').value = preferences.context || '';
     document.getElementById('planner-start').value = preferences.start || '09:00';
     document.getElementById('planner-end').value = preferences.end || '18:00';
     document.getElementById('planner-energy').value = preferences.energy || 'balanced';
@@ -1483,6 +1484,7 @@ async function generateDailyPlan() {
   const date = document.getElementById('planner-date').value;
   const request = {
     date, brief: document.getElementById('planner-brief').value.trim(),
+    context: document.getElementById('planner-detail-context').value.trim(),
     start: document.getElementById('planner-start').value, end: document.getElementById('planner-end').value,
     energy: document.getElementById('planner-energy').value, focusMinutes: Number(document.getElementById('planner-focus').value),
     commitments: state.tasks.filter(t => t.date === date && t.status !== 'skipped').map(t => ({name:t.name,start:t.start,end:t.end})),
@@ -1492,10 +1494,10 @@ async function generateDailyPlan() {
   if (date === todayStr()) {
     const now = new Date(), minute = now.getHours()*60+now.getMinutes()+1;
     const currentTime = `${String(Math.floor(minute/60)).padStart(2,'0')}:${String(minute%60).padStart(2,'0')}`;
-    if (request.start < currentTime) request.start = currentTime;
+    if (request.start < currentTime) { plannerError('Your chosen start time has already passed. Choose Remaining today, Tomorrow, or adjust your hours before generating.'); return; }
     if (request.start >= request.end) { plannerError('That time window has already passed. Choose later hours or plan tomorrow.'); return; }
   }
-  state.plannerPreferences = { brief: request.brief, start: request.start, end: request.end, energy: request.energy, focusMinutes: request.focusMinutes };
+  state.plannerPreferences = { brief: request.brief, context: request.context, start: request.start, end: request.end, energy: request.energy, focusMinutes: request.focusMinutes };
   save();
   plannerController = new AbortController();
   document.getElementById('planner-fields').disabled = true;
@@ -1767,4 +1769,18 @@ function exportLocalWorkspace() {
   const url=URL.createObjectURL(blob), link=document.createElement('a');
   link.href=url; link.download=`slothmotivate-${todayStr()}.json`; link.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function setPlannerDay(choice) {
+  const now=new Date();
+  if (choice==='tomorrow') {
+    now.setDate(now.getDate()+1); document.getElementById('planner-date').value=localDate(now);
+  } else {
+    const minutes=now.getHours()*60+now.getMinutes()+1;
+    if (minutes>1424) { plannerError('There is less than 15 minutes left today. Choose Tomorrow.'); return; }
+    document.getElementById('planner-date').value=localDate(now);
+    document.getElementById('planner-start').value=`${String(Math.floor(minutes/60)).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`;
+    if (document.getElementById('planner-end').value<=document.getElementById('planner-start').value) document.getElementById('planner-end').value='23:59';
+  }
+  plannerError(''); updatePlannerContext();
 }

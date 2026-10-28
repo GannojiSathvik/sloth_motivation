@@ -2960,3 +2960,4 @@ a.btn, a.btn-ai, a.local-profile { text-decoration: none; }
 .pomodoro-modes button:disabled { cursor:default; opacity:.65; }
 .pomodoro-rounds { font-size:11px!important; margin-top:10px!important; }
 .account-card hr { border:0; border-top:1px solid var(--border); margin:25px 0; }
+.planner-block>p { white-space:pre-line; font-size:12px; line-height:1.8; }
