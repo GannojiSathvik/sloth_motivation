@@ -6,7 +6,7 @@ const path = require('node:path');
 const { generatePlan, PlannerError } = require('./planner');
 
 const ROOT = __dirname;
-const PAGE_ROUTES = new Set(['/', '/index.html', '/timetable', '/journal', '/progress', '/fuel', '/planner', '/account']);
+const PAGE_ROUTES = new Set(['/', '/index.html', '/timetable', '/journal', '/progress', '/fuel', '/planner', '/account', '/todos']);
 const PUBLIC_FILES = new Set(['/style.css', '/app.js']);
 const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2' };
 

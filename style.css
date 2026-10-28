@@ -2924,3 +2924,23 @@ a.btn, a.btn-ai, a.local-profile { text-decoration: none; }
 .work-details p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-2); white-space: pre-wrap; }
 .work-resource-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
 .work-resource-links a { color: var(--green); font-size: 13px; overflow-wrap: anywhere; }
+
+.todo-layout { display:grid; grid-template-columns:minmax(250px,340px) minmax(0,1fr); gap:24px; align-items:start; margin-top:24px; }
+.todo-capture,.todo-item,.todo-suggestion { padding:24px; }
+.todo-capture label { display:block; margin:18px 0 8px; font-size:12px; color:var(--text-2); }
+.todo-capture .input { width:100%; }
+.todo-help,.todo-item p,.todo-suggestion p { margin:12px 0; color:var(--text-2); line-height:1.7; font-size:13px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.todo-suggestion { background:linear-gradient(125deg,#28362b,#1a211c); }
+.todo-toolbar { display:flex; align-items:center; gap:12px; margin:20px 0; font-size:12px; }
+.todo-toolbar select { width:auto; } #todo-count { margin-left:auto; }
+.todo-list { display:grid; gap:12px; } .todo-item h3 { font-size:16px; overflow-wrap:anywhere; }
+.todo-actions { display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:18px; }
+.todo-actions>span { margin-right:auto; color:var(--text-3); font-size:12px; } .todo-actions .btn { padding:8px 14px; }
+.todo-item .card-heading { flex-wrap:wrap; gap:10px; }
+.reminder-nudge { display:flex; flex-wrap:wrap; align-items:center; gap:16px; padding:20px; margin-top:20px; border:1px solid var(--border); border-radius:12px; }
+.reminder-nudge>div { margin-right:auto; } .reminder-nudge strong { display:block; margin-top:8px; }
+.lesson-item { padding:14px 0; border-bottom:1px solid var(--border); }
+.reflection-detail { white-space:pre-wrap; overflow-wrap:anywhere; margin:8px 0; color:var(--text-2); }
+#work-lessons summary { cursor:pointer; color:var(--text-2); font-size:13px; }
+@media(max-width:1000px) { .todo-layout { grid-template-columns:1fr; } }
+@media(max-width:520px) { .sidebar-nav { overflow-x:auto; justify-content:flex-start; } .sidebar-nav .nav-item { flex:0 0 auto; min-width:64px; padding-left:8px; padding-right:8px; } }
