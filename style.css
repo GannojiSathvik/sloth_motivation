@@ -2954,3 +2954,9 @@ a.btn, a.btn-ai, a.local-profile { text-decoration: none; }
 .task-form-error { margin:0 24px 16px; color:var(--red); font-size:13px; }
 .input[aria-invalid="true"] { border-color:var(--red); }
 @media(max-width:700px) { .overview-features { grid-template-columns:1fr; } }
+.pomodoro-modes { display:flex; flex-wrap:wrap; gap:6px; margin-top:20px; }
+.pomodoro-modes button { background:#18211b; border:1px solid #50604c; border-radius:8px; padding:8px 10px; font-size:11px; color:var(--text-2); }
+.pomodoro-modes button[aria-pressed="true"] { background:#b5d5a6; color:#17251e; }
+.pomodoro-modes button:disabled { cursor:default; opacity:.65; }
+.pomodoro-rounds { font-size:11px!important; margin-top:10px!important; }
+.account-card hr { border:0; border-top:1px solid var(--border); margin:25px 0; }

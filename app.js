@@ -384,15 +384,17 @@ let state = {
 // ═══════════════════════════════════════
 function save() {
   localStorage.setItem(activeStorageKey, JSON.stringify(state));
-  window.cloud?.queueSave();
 }
 
 function load() {
+  const selected=localStorage.getItem('sm_local_workspace');
+  if (selected==='sm_state' || selected?.startsWith('sm_state:')) activeStorageKey=selected;
   const raw = localStorage.getItem(activeStorageKey);
   if (raw) {
     const loaded = JSON.parse(raw);
     state = { ...state, ...loaded };
   }
+  if (!Number.isInteger(state.focus.rounds)) state.focus.rounds=state.focusSessions.length;
   // Ensure today exists in history
   const today = todayStr();
   if (!state.history[today]) state.history[today] = 0;
@@ -434,7 +436,7 @@ const PAGES = {
   quotes: { path: '/fuel', title: 'Daily fuel' },
   planner: { path: '/planner', title: 'AI planner' },
   todos: { path: '/todos', title: 'To-do & reminders' },
-  account: { path: '/account', title: 'Your account' },
+  account: { path: '/account', title: 'Local storage' },
 };
 
 function pageFromPath(pathname) {
@@ -460,6 +462,7 @@ function renderPage(page, { focus = true } = {}) {
 
   if (page === 'dashboard') updateDashboard();
   if (page === 'work') renderWork();
+  if (page === 'account') renderLocalStorage();
   if (page === 'timetable') renderTimetable();
   if (page === 'journal') renderJournal();
   if (page === 'planner') initPlanner();
@@ -1234,42 +1237,56 @@ function showToast(message) {
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => toast.classList.remove('show'), 4200);
 }
+const POMODORO_MODES = { focus: { seconds:1500, label:'Focus' }, short: { seconds:300, label:'Short break' }, long: { seconds:900, label:'Long break' } };
+function focusMode() { return POMODORO_MODES[state.focus.mode] ? state.focus.mode : 'focus'; }
+function nextFocusMode() { return focusMode()==='focus' ? ((state.focus.rounds||0)%4===0 ? 'long':'short') : 'focus'; }
+function selectFocusMode(mode) {
+  if (!POMODORO_MODES[mode]) return;
+  if (state.focus.endAt) { showToast('Pause the timer before switching modes.'); return; }
+  state.focus={mode,remaining:POMODORO_MODES[mode].seconds,endAt:null,completed:false,rounds:state.focus.rounds||0};
+  save(); renderFocus();
+}
 function toggleFocus() {
-  if (state.focus.endAt) {
-    state.focus.remaining = Math.max(0, Math.ceil((state.focus.endAt - Date.now()) / 1000));
-    state.focus.endAt = null;
-  } else {
-    if (state.focus.completed || state.focus.remaining <= 0) state.focus = { remaining: FOCUS_SECONDS, endAt: null, completed: false };
-    state.focus.endAt = Date.now() + state.focus.remaining * 1000;
-    if (state.workSession) state.focus.overlapsWork = true;
-  }
-  save();
+  // Settle a deadline before handling a click, even when the tab was asleep.
   renderFocus();
+  if (state.focus.endAt) {
+    state.focus.remaining=Math.max(0,Math.ceil((state.focus.endAt-Date.now())/1000)); state.focus.endAt=null;
+  } else {
+    if (state.focus.completed || state.focus.remaining<=0) selectFocusMode(nextFocusMode());
+    state.focus.endAt=Date.now()+state.focus.remaining*1000;
+    if (state.workSession && focusMode()==='focus') state.focus.overlapsWork=true;
+  }
+  save(); renderFocus();
 }
 function resetFocus() {
-  state.focus = { remaining: FOCUS_SECONDS, endAt: null, completed: false };
-  save();
-  renderFocus();
-  showToast('A fresh 25 minutes. Start when you’re ready.');
+  const mode=focusMode(), rounds=state.focus.rounds||0;
+  state.focus={mode,rounds,remaining:POMODORO_MODES[mode].seconds,endAt:null,completed:false};
+  save(); renderFocus(); showToast('Timer reset. Start when you’re ready.');
 }
 function renderFocus() {
-  let remaining = state.focus.endAt ? Math.max(0, Math.ceil((state.focus.endAt - Date.now()) / 1000)) : state.focus.remaining;
-  if (state.focus.endAt && remaining === 0) {
-    const finishedAt = state.focus.endAt;
-    const overlapsWork = Boolean(state.focus.overlapsWork);
-    state.focus = { remaining: 0, endAt: null, completed: true };
-    state.focusSessions.push({ date: localDate(new Date(finishedAt)), minutes: 25, overlapsWork });
-    save();
-    updateOverviewMetrics();
-    showToast('25 minutes, just for you. Session complete — take a breath.');
+  const mode=focusMode(), settings=POMODORO_MODES[mode];
+  const remaining=state.focus.endAt?Math.max(0,Math.ceil((state.focus.endAt-Date.now())/1000)):state.focus.remaining;
+  if (state.focus.endAt && remaining===0) {
+    const finishedAt=state.focus.endAt, overlapsWork=Boolean(state.focus.overlapsWork);
+    const rounds=(state.focus.rounds||0)+(mode==='focus'?1:0);
+    state.focus={mode,rounds,remaining:0,endAt:null,completed:true};
+    if (mode==='focus') state.focusSessions.push({date:localDate(new Date(finishedAt)),minutes:25,overlapsWork});
+    save(); updateOverviewMetrics();
+    showToast(mode==='focus'?'Focus complete. Take a well-earned break.':'Break complete. Ready for another small step?');
   }
-  setText('focus-time', `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`);
-  const running = Boolean(state.focus.endAt);
-  setText('focus-button-label', running ? 'Pause session' : state.focus.completed ? 'Start another session' : remaining < FOCUS_SECONDS ? 'Resume session' : 'Start focus session');
-  setText('focus-play-icon', running ? 'Ⅱ' : '▶');
-  setText('focus-state', running ? 'YOU’RE MAKING SPACE' : state.focus.completed ? 'BEAUTIFULLY DONE' : remaining < FOCUS_SECONDS ? 'TAKE YOUR TIME' : 'A MOMENT FOR YOU');
-  document.getElementById('focus-ring').style.strokeDashoffset = 666 * (1 - remaining / FOCUS_SECONDS);
-  document.getElementById('focus-toggle').setAttribute('aria-pressed', String(running));
+  const running=Boolean(state.focus.endAt);
+  setText('focus-time',`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`);
+  setText('focus-button-label',running?'Pause':state.focus.completed?`Start ${POMODORO_MODES[nextFocusMode()].label.toLowerCase()}`:remaining<settings.seconds?'Resume':`Start ${settings.label.toLowerCase()}`);
+  setText('focus-play-icon',running?'Ⅱ':'▶');
+  setText('focus-state',state.focus.completed?'SESSION COMPLETE':running?settings.label.toUpperCase():remaining<settings.seconds?'PAUSED':settings.label.toUpperCase());
+  setText('pomodoro-rounds',`${state.focus.rounds||0} focus sessions · long break after every 4`);
+  setText('pomodoro-mode-label',`${settings.seconds/60} MIN ${settings.label.toUpperCase()}`);
+  document.getElementById('focus-ring').style.strokeDashoffset=666*(1-remaining/settings.seconds);
+  document.getElementById('focus-toggle').setAttribute('aria-pressed',String(running));
+  for (const key of Object.keys(POMODORO_MODES)) {
+    const button=document.getElementById('pomodoro-'+key); if (!button) continue;
+    button.setAttribute('aria-pressed',String(key===mode)); button.disabled=running;
+  }
 }
 function updateOverviewMetrics() {
   const today = todayStr();
@@ -1488,9 +1505,7 @@ async function generateDailyPlan() {
   plannerDraft = null;
   document.getElementById('planner-preview').innerHTML = '<div class="planner-placeholder"><div class="planning-loader">✦</div><h2>Making room for what matters…</h2><p>Gemini is fitting your priorities around your day, with time to breathe.</p></div>';
   try {
-    const token = await window.cloud?.getAccessToken();
     const headers = { 'Content-Type': 'application/json' };
-    if (token) headers.Authorization = `Bearer ${token}`;
     const response = await fetch('/api/plan', { method:'POST', headers, body:JSON.stringify(request), signal:plannerController.signal });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Planning could not finish. Try again.');
@@ -1637,24 +1652,6 @@ function init() {
       setText('work-elapsed', clockDuration(workElapsed(state.workSession)));
     }
   }, 1000);
-  window.cloud?.init({
-    getState: () => state,
-    switchAccount: (userId, remoteState) => {
-      const guest = JSON.parse(localStorage.getItem('sm_state') || '{}');
-      resetTodoForm();
-      activeStorageKey = userId ? `sm_state:${userId}` : 'sm_state';
-      const local = JSON.parse(localStorage.getItem(activeStorageKey) || '{}');
-      const baseline = { todos: [], tasks: [], journal: [], goals: [], history: {}, streak: 0, workLogs: [], workSession: null, focusSessions: [], focus: { remaining: 1500, endAt: null, completed: false }, plannerPreferences: {}, currentQuoteIdx: 0, currentJournalRating: 3 };
-      const source = remoteState || (Object.keys(local).length ? local : userId ? guest : {});
-      state = { ...baseline, ...source, workSession: local.workSession || (!userId ? source.workSession : null), focus: local.focus || baseline.focus };
-      localStorage.setItem(activeStorageKey, JSON.stringify(state));
-      updateDashboard(); renderWork(); renderFocus(); renderMainQuote();
-      renderPage(pageFromPath(window.location.pathname) || 'dashboard', { focus: false });
-      return state;
-    },
-    hasActiveWork: () => Boolean(state.workSession),
-    notify: showToast
-  });
   console.log('SlothMotivate ready.');
 }
 
@@ -1743,4 +1740,31 @@ function renderOverviewFeatures() {
     {page:'planner',path:'/planner',label:'AI PLANNER',title:'Give your day a little direction',body:`${state.tasks.filter(t=>t.date===todayStr()&&t.source==='gemini').length} AI-planned blocks today. Build a plan around what matters.`,action:'Plan with Gemini'}
   ];
   el.innerHTML=cards.map(c=>`<a class="card overview-feature" href="${c.path}" data-page="${c.page}"><span class="eyebrow">${c.label}</span><h2>${escHtml(c.title)}</h2><p>${escHtml(c.body)}</p><span class="text-button">${c.action} ↗</span></a>`).join('');
+}
+
+function renderLocalStorage() {
+  const select=document.getElementById('local-workspace'); if (!select) return;
+  const keys=['sm_state'];
+  for (let i=0;i<localStorage.length;i++) { const key=localStorage.key(i); if (key?.startsWith('sm_state:')) keys.push(key); }
+  select.innerHTML=keys.map((key,index)=>`<option value="${escAttr(key)}">${index===0?'This browser’s workspace':`Previously cached account ${index}`}</option>`).join('');
+  select.value=activeStorageKey;
+}
+function useLocalWorkspace() {
+  if (state.workSession || state.focus.endAt) { showToast('Finish your work session and pause the Pomodoro timer before switching.'); return; }
+  const key=document.getElementById('local-workspace').value;
+  if (key!=='sm_state' && !key.startsWith('sm_state:')) return;
+  const raw=localStorage.getItem(key); if (!raw) { showToast('No saved entries in that workspace yet.'); return; }
+  try {
+    const data=JSON.parse(raw);
+    if (!Array.isArray(data.tasks)) throw new Error('Invalid workspace');
+    activeStorageKey=key; localStorage.setItem('sm_local_workspace',key);
+    state={...state,tasks:[],todos:[],journal:[],goals:[],history:{},workLogs:[],focusSessions:[],workSession:null,focus:{remaining:1500,endAt:null,completed:false},...data};
+    updateDashboard(); renderFocus(); showToast('Local workspace loaded. Nothing was sent to Supabase.');
+  } catch { showToast('This saved workspace could not be loaded. Your data is unchanged.'); }
+}
+function exportLocalWorkspace() {
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob), link=document.createElement('a');
+  link.href=url; link.download=`slothmotivate-${todayStr()}.json`; link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }

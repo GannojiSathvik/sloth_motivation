@@ -195,3 +195,22 @@ test('overview summarizes reminders and reflections and work has its own route',
   assert.equal(a.run("pageFromPath('/work')"),'work');
   assert.equal(a.run('PAGES.dashboard.title'),'Overview');
 });
+
+test('Pomodoro offers breaks, excludes break minutes and returns to focus', () => {
+  const a=app(); a.run('state.focus.endAt=Date.now()-100; renderFocus(); toggleFocus()');
+  assert.equal(a.run('focusMode()'),'short'); assert.equal(a.run('state.focus.rounds'),1);
+  a.run('state.focus.endAt=Date.now()-100; renderFocus(); load(); renderFocus()');
+  assert.equal(a.run('state.focusSessions.length'),1);
+  a.run('toggleFocus()'); assert.equal(a.run('focusMode()'),'focus');
+});
+test('fourth completed focus offers long break and mode changes cannot discard running time', () => {
+  const a=app(); a.run("state.focus.rounds=3; toggleFocus(); selectFocusMode('short')");
+  assert.equal(a.run('focusMode()'),'focus');
+  a.run('state.focus.endAt=Date.now()-100; renderFocus(); toggleFocus()');
+  assert.equal(a.run('focusMode()'),'long'); assert.equal(a.run('state.focus.remaining'),900);
+  a.run('toggleFocus(); resetFocus()'); assert.equal(a.run('state.focus.rounds'),4);
+});
+test('local-only HTML loads no Supabase client or account sign-in form', () => {
+  const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+  assert.ok(!html.includes('src="/assets/cloud.js"')); assert.ok(!html.includes('account-google'));
+});

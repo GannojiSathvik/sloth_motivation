@@ -1,3 +1,5 @@
+> Current mode: local browser storage. Supabase sync and sign-in are paused; existing cloud data is untouched. Download backups from Local storage. Gemini works in the local Node app; the public hosted planner is paused until an independent abuse-protection mechanism is configured. The cloud setup notes below are retained for future re-enablement.
+
 # 🦥 SlothMotivate
 
 > *"Why run when you can walk? Why walk when you can nap? And why stress when you can take one tiny step at a time?"*
@@ -118,3 +120,7 @@ In Supabase Authentication → URL Configuration, allow `http://127.0.0.1:4174/a
 Use `/todos` to capture tasks with optional reminder dates and planned minutes. Due items appear on Work & reflect and are summarized on Overview; choose “Pick a task for me” when unsure what to do. Start opens the work timer immediately. Items can be completed, reopened, moved to tomorrow, or archived and restored. Reminders are in-app only, without background notifications.
 
 Finish & reflect stops timing before asking what you did, where you worked, whether it was worthwhile, mistakes or obstacles, and one lesson for next time. Reflections appear in the journal; the latest three lessons are available on Work & reflect, with the latest lesson summarized on Overview. Older logs remain compatible. To-dos and reflections use the existing private Supabase workspace, so no new table migration is needed.
+
+## Pomodoro
+
+The overview includes 25-minute focus, 5-minute short breaks, and 15-minute long breaks. After four completed focus sessions it offers a long break. Start the suggested phase when ready; phases never auto-start. Pause/resume and refresh recovery use saved deadlines. Breaks are excluded from focus statistics. The timer settles when the app returns from sleep; it does not issue background notifications with the browser closed.

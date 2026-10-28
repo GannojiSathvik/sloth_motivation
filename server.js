@@ -34,7 +34,7 @@ function createServer({ planGenerator = generatePlan, env = process.env } = {}) 
       const origin = request.headers.origin;
       if ((origin && origin !== `http://${host}`) || request.headers['sec-fetch-site'] === 'cross-site') { json(response, 403, { error: 'Open the planner from this app.' }); return; }
       if (requestPath === '/api/config' && request.method === 'GET') {
-        json(response, 200, { geminiConfigured: Boolean(env.GEMINI_API_KEY), supabaseUrl: env.SUPABASE_URL || '', supabasePublishableKey: env.SUPABASE_PUBLISHABLE_KEY || '' }); return;
+        json(response, 200, { geminiConfigured: Boolean(env.GEMINI_API_KEY), storageMode: 'local' }); return;
       }
       if (requestPath === '/api/plan' && request.method === 'POST') {
         if (!request.headers['content-type']?.startsWith('application/json')) { json(response, 415, { error: 'Use JSON for planning requests.' }); return; }
