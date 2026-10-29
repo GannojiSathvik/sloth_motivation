@@ -394,7 +394,7 @@ function load() {
     const loaded = JSON.parse(raw);
     state = { ...state, ...loaded };
   }
-  if (!Number.isInteger(state.focus.rounds)) state.focus.rounds=state.focusSessions.length;
+  if (!Number.isInteger(state.focus.rounds)) state.focus.rounds=state.focusSessions.filter(s=>!s.mode||s.mode==='focus').length;
   // Ensure today exists in history
   const today = todayStr();
   if (!state.history[today]) state.history[today] = 0;
@@ -428,14 +428,14 @@ function updateClock() {
 // PAGE ROUTING
 // ═══════════════════════════════════════
 const PAGES = {
-  dashboard: { path: '/', title: 'Overview' },
-  work: { path: '/work', title: 'Work & reflect' },
+  dashboard: { path: '/', title: 'Dashboard' },
+  work: { path: '/work', title: 'Focus' },
   timetable: { path: '/timetable', title: 'Timetable' },
   journal: { path: '/journal', title: 'Journal' },
-  progress: { path: '/progress', title: 'My progress' },
+  progress: { path: '/progress', title: 'Progress' },
   quotes: { path: '/fuel', title: 'Daily fuel' },
-  planner: { path: '/planner', title: 'AI planner' },
-  todos: { path: '/todos', title: 'To-do & reminders' },
+  planner: { path: '/planner', title: 'Planner' },
+  todos: { path: '/todos', title: 'Tasks' },
   account: { path: '/account', title: 'Local storage' },
 };
 
@@ -452,7 +452,7 @@ function renderPage(page, { focus = true } = {}) {
   const panel = document.getElementById('tab-' + page);
   panel.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(link => {
-    const active = link.dataset.page === page;
+    const active = link.dataset.page === ({timetable:'planner',journal:'progress',quotes:'progress'}[page] || page);
     link.classList.toggle('active', active);
     if (active) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
@@ -467,7 +467,7 @@ function renderPage(page, { focus = true } = {}) {
   if (page === 'journal') renderJournal();
   if (page === 'planner') initPlanner();
   if (page === 'todos') renderTodos();
-  if (page === 'progress') renderProgress();
+  if (page === 'progress') { renderProgress(); renderDailyReview(); }
   if (page === 'quotes') renderFuelSlide();
   else if (fuelTimer) {
     clearTimeout(fuelTimer);
@@ -526,6 +526,8 @@ function closeModal(id) {
 // TIMETABLE
 // ═══════════════════════════════════════
 function openAddTask() {
+  editingTaskId=null;
+  clearForm(['task-name','task-desc','task-expected','task-start','task-end','task-links']);
   const dp = document.getElementById('timetable-date');
   document.getElementById('task-date').value = dp.value || todayStr();
   if (!document.getElementById('tab-timetable').classList.contains('active')) document.getElementById('task-date').value = todayStr();
@@ -535,6 +537,7 @@ function openAddTask() {
   const time = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
   if (!document.getElementById('task-start').value) document.getElementById('task-start').value=time(minute);
   if (!document.getElementById('task-end').value) document.getElementById('task-end').value=time(minute+30);
+  syncTimeControls();
   openModal('modal-add-task');
 }
 
@@ -550,11 +553,12 @@ function saveTask() {
   }
   if (end <= start) { setTaskError('Choose an end time after the start time.','task-end'); return; }
   setTaskError('');
+  if(state.tasks.some(t=>t.id!==editingTaskId&&t.date===date&&!['skipped','rescheduled'].includes(t.status)&&start<t.end&&end>t.start)){setTaskError('This overlaps another block. Choose a free time.','task-start');return;}
   const linksRaw = document.getElementById('task-links').value.trim();
   const links = linksRaw ? linksRaw.split('\n').map(l => l.trim()).filter(Boolean) : [];
 
-  state.tasks.push({
-    id: Date.now(),
+  const savedTask={
+    id: editingTaskId || Date.now(),
     name,
     desc: document.getElementById('task-desc').value.trim(),
     start,
@@ -562,14 +566,17 @@ function saveTask() {
     category: document.getElementById('task-category').value,
     links,
     date,
-    status: 'pending',
-  });
+    status: state.tasks.find(t=>t.id===editingTaskId)?.status || 'pending',
+    expected: document.getElementById('task-expected').value.trim(),
+  };
+  if(editingTaskId)state.tasks=state.tasks.map(t=>t.id===editingTaskId?{...t,...savedTask,scheduleEdits:[...(t.scheduleEdits||[]),{date:t.date,start:t.start,end:t.end,name:t.name,expected:t.expected,changedAt:Date.now()}]}:t);else state.tasks.push(savedTask);
+  editingTaskId=null;
   save();
   closeModal('modal-add-task');
   clearForm(['task-name','task-desc','task-start','task-end','task-links']);
   renderTimetable();
   updateDashboard();
-  showToast('Time block added. Make a little room for progress.');
+  showToast('Time block saved. Make a little room for progress.');
 }
 
 function clearForm(ids) {
@@ -580,66 +587,12 @@ function clearForm(ids) {
 }
 
 function renderTimetable() {
-  const dp = document.getElementById('timetable-date');
-  if (!dp.value) dp.value = todayStr();
-  const date = dp.value;
-
-  const dayTasks = state.tasks.filter(t => t.date === date);
-  const axis  = document.getElementById('time-axis');
-  const blocksWrap = document.getElementById('blocks-wrap');
-  axis.innerHTML = '';
-  blocksWrap.innerHTML = '';
-
-  // Now line
-  const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-
-  for (let h = 0; h < 24; h++) {
-    const label = document.createElement('div');
-    label.className = 'time-axis-label';
-    label.textContent = `${String(h).padStart(2,'0')}:00`;
-    axis.appendChild(label);
-
-    const row = document.createElement('div');
-    row.className = 'hour-row';
-    blocksWrap.appendChild(row);
-  }
-
-  // Draw task blocks
-  dayTasks.forEach(task => {
-    const [sh, sm] = task.start.split(':').map(Number);
-    const [eh, em] = task.end.split(':').map(Number);
-    const startMins = sh * 60 + sm;
-    const endMins   = eh * 60 + em;
-    const durationMins = endMins - startMins;
-    if (durationMins <= 0) return;
-
-    const block = document.createElement('div');
-    block.className = `task-block cat-${task.category} status-${task.status}`;
-    block.style.top    = (startMins / 60) * 60 + 'px';
-    block.style.height = (durationMins / 60) * 60 + 'px';
-    block.style.position = 'absolute';
-
-    const statusEmoji = task.status === 'done' ? '✅' : task.status === 'skipped' ? '⛔' : '';
-    block.innerHTML = `
-      <div class="task-block-name">${statusEmoji} ${escHtml(task.name)}</div>
-      <div class="task-block-time">${task.start} – ${task.end}</div>
-      <div class="task-block-actions">
-        <button class="task-block-btn tbb-done"  onclick="setTaskStatus(${task.id}, 'done')">✅ Done</button>
-        <button class="task-block-btn tbb-skip"  onclick="setTaskStatus(${task.id}, 'skipped')">⛔ Skip</button>
-        <button class="task-block-btn tbb-del"   onclick="deleteTask(${task.id})">🗑</button>
-      </div>
-    `;
-    blocksWrap.appendChild(block);
-  });
-
-  // Draw now line (only for today)
-  if (date === todayStr()) {
-    const line = document.createElement('div');
-    line.className = 'now-line';
-    line.style.top = (nowMins / 60) * 60 + 'px';
-    blocksWrap.appendChild(line);
-  }
+  const dp=document.getElementById('timetable-date'); if(!dp.value)dp.value=todayStr();
+  const date=dp.value;
+  const days=Array.from({length:7},(_,i)=>{const d=new Date(date+'T12:00:00');d.setDate(d.getDate()-((d.getDay()+6)%7)+i);return localDate(d);});
+  document.getElementById('time-axis').innerHTML=`<div class="week-strip">${days.map(d=>`<button class="day-choice ${d===date?'selected':''}" onclick="chooseScheduleDay('${d}')"><span>${new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}</span><strong>${Number(d.slice(-2))}</strong><small>${state.tasks.filter(t=>t.date===d&&t.status!=='rescheduled').length} blocks</small></button>`).join('')}</div>`;
+  const tasks=state.tasks.filter(t=>t.date===date).slice().sort((a,b)=>a.start.localeCompare(b.start));
+  document.getElementById('blocks-wrap').innerHTML=tasks.length?tasks.map(t=>`<article class="agenda-item status-${t.status}"><div class="agenda-time">${formatTime(t.start)}<small>${formatTime(t.end)}</small></div><div><span class="small-pill">${escHtml(taskLabel(t))} · ${taskDuration(t)} min</span><h3>${escHtml(t.name)}</h3><p>${escHtml(t.expected||t.desc||'Add an outcome to make this block easier to finish.')}</p>${t.expected&&t.desc?`<details><summary>Steps & resources</summary><p>${escHtml(t.desc)}</p></details>`:''}</div><div class="agenda-actions">${['pending','partial'].includes(t.status)?`<button class="btn btn-primary" onclick="startWork(${t.id})">${t.category==='break'?'Take a break':'Start'}</button>`:''}<button class="text-button" onclick="editTask(${t.id})">Edit</button><button class="text-button" onclick="setTaskStatus(${t.id},'done')">Done</button><button class="text-button" onclick="setTaskStatus(${t.id},'skipped')">Skip</button></div></article>`).join(''):'<div class="schedule-empty"><h2>A little room for possibility.</h2><p>Describe your available hours and let AI arrange your day.</p><a href="/planner" data-page="planner" class="btn btn-primary">Plan my day</a></div>';
 }
 
 function setTaskStatus(id, status) {
@@ -816,26 +769,14 @@ function renderWeekBars() {
 }
 
 function renderCompareBars() {
-  const categories = { focus: 'Focus', learning: 'Learning', exercise: 'Exercise', admin: 'Admin' };
-  const completed = state.tasks.filter(t => t.date === todayStr() && t.status === 'done');
-  const totals = Object.keys(categories).map(category => completed.filter(t => t.category === category).reduce((sum, t) => sum + taskDuration(t), 0));
-  const scale = Math.max(60, ...totals);
-  document.getElementById('compare-bars').innerHTML = Object.values(categories).map((label, i) => `<div class="compare-bar-row"><span class="compare-bar-label">${label}</span><div class="compare-bar-track"><div class="compare-bar-fill" style="width:${totals[i] / scale * 100}%"></div></div><span class="compare-value">${totals[i]} min</span></div>`).join('');
+  const m=TimeMetrics.daily(state,todayStr());
+  const values=[m.plannedMs,m.workMs,m.distractedMs,m.breakMs].map(n=>Math.round(n/60000));
+  const max=Math.max(1,...values);
+  document.getElementById('compare-bars').innerHTML=['Planned','Work','Distractions','Breaks'].map((label,i)=>`<div class="compare-bar-row"><span>${label}</span><div class="compare-bar-track"><div class="compare-bar-fill" style="width:${values[i]/max*100}%"></div></div><span>${values[i]} min</span></div>`).join('');
 }
-
 function renderTimeInvested() {
-  const done = state.tasks.filter(t => t.status === 'done');
-  const skipped = state.tasks.filter(t => t.status === 'skipped');
-  const focusDone = done.filter(t => t.category === 'focus' || t.category === 'learning');
-
-  let totalMins = 0, focusMins = 0, wastedMins = 0;
-  done.forEach(t => { totalMins += taskDuration(t); });
-  focusDone.forEach(t => { focusMins += taskDuration(t); });
-  skipped.forEach(t => { wastedMins += taskDuration(t); });
-
-  document.getElementById('total-hours').textContent = minsToH(totalMins);
-  document.getElementById('focus-hours').textContent = minsToH(focusMins);
-  document.getElementById('wasted-hours').textContent = minsToH(wastedMins);
+  const m=TimeMetrics.daily(state,todayStr());
+  setText('total-hours',minsToH(m.workMs/60000));setText('focus-hours',minsToH(m.breakMs/60000));setText('wasted-hours',minsToH(m.distractedMs/60000));
 }
 
 function taskDuration(t) {
@@ -998,12 +939,10 @@ function renderTicker() {
 // ═══════════════════════════════════════
 function updateDashboard() {
   const today = todayStr();
-  const dayTasks = state.tasks.filter(t => t.date === today);
+  const dayTasks = state.tasks.filter(t => t.date === today && t.category !== 'break' && t.status !== 'rescheduled');
 
-  const done  = dayTasks.filter(t => t.status === 'done').length;
-  const skip  = dayTasks.filter(t => t.status === 'skipped').length;
-  const total = dayTasks.length;
-  const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
+  const metrics=TimeMetrics.daily(state,today);
+  const done=metrics.done, skip=metrics.missed, total=metrics.total, pct=metrics.completion;
 
   // Update sidebar score
   const sideScore = document.getElementById('sidebar-score');
@@ -1020,10 +959,10 @@ function updateDashboard() {
   // Stat counts
   setText('done-count', done);
   setText('procrastinated-count', skip);
-  setText('pending-count', total - done - skip);
+  setText('pending-count', metrics.pending);
 
   // Save score to history
-  state.history[today] = pct;
+  rebuildHistory();
   save();
 
   // Current task
@@ -1039,6 +978,8 @@ function updateDashboard() {
   computeStreak();
   updateOverviewMetrics();
   renderWork();
+  renderDailySummary();
+  renderCarryForward();
 }
 
 function updateCurrentTask() {
@@ -1095,7 +1036,7 @@ function renderUpcoming() {
     .filter(t => {
       if (t.date !== today) return false;
       const [sh,sm] = t.start.split(':').map(Number);
-      return sh*60+sm > currentMins && t.status === 'pending';
+      return ['pending','partial'].includes(t.status);
     })
     .sort((a,b) => a.start.localeCompare(b.start))
     .slice(0, 4);
@@ -1108,7 +1049,7 @@ function renderUpcoming() {
     return;
   }
   container.innerHTML = upcoming.map(t => `
-    <div class="upcoming-item cat-${escAttr(t.category)}"><span class="schedule-marker"></span><div class="schedule-copy"><span class="upcoming-title">${escHtml(t.name)}</span><span class="upcoming-time">${t.start} – ${t.end}</span></div><span class="schedule-duration">${taskDuration(t)} min</span></div>
+    <div class="upcoming-item cat-${escAttr(t.category)}"><span class="schedule-marker"></span><div class="schedule-copy"><span class="upcoming-title">${escHtml(t.name)}</span><span class="upcoming-time">${formatTime(t.start)} – ${formatTime(t.end)}</span></div><span class="schedule-duration">${escHtml(taskLabel(t))}</span><button class="text-button" onclick="startWork(${t.id})">Start ↗</button></div>
   `).join('');
 }
 
@@ -1121,7 +1062,7 @@ function renderHeatmap() {
     d.setDate(d.getDate() - i);
     const key = localDate(d);
     const score = state.history[key] || 0;
-    const level = score === 0 ? 0 : score < 25 ? 1 : score < 50 ? 2 : score < 75 ? 3 : 4;
+    const level = score === 0 ? (TimeMetrics.daily(state,key).workMs>0?1:0) : score < 25 ? 1 : score < 50 ? 2 : score < 75 ? 3 : 4;
     cells.push(`<div class="hm-cell${i === 0 ? ' today' : ''}" data-level="${level}" tabindex="0" aria-label="${key}: ${score}% completed" title="${key}: ${score}% completed"></div>`);
   }
   container.innerHTML = cells.join('');
@@ -1130,11 +1071,11 @@ function renderHeatmap() {
 function computeStreak() {
   let streak = 0;
   const d = new Date();
-  if (!(state.history[todayStr()] > 0)) d.setDate(d.getDate() - 1);
+  const active=date=>{const m=TimeMetrics.daily(state,date);return m.done>0||m.workMs>0||(state.history[date]||0)>0;};
+  if (!active(todayStr())) d.setDate(d.getDate() - 1);
   while (true) {
     const key = localDate(d);
-    const score = state.history[key] || 0;
-    if (score > 0) { streak++; d.setDate(d.getDate() - 1); }
+    if (active(key)) { streak++; d.setDate(d.getDate() - 1); }
     else break;
   }
   state.streak = streak;
@@ -1242,6 +1183,7 @@ function focusMode() { return POMODORO_MODES[state.focus.mode] ? state.focus.mod
 function nextFocusMode() { return focusMode()==='focus' ? ((state.focus.rounds||0)%4===0 ? 'long':'short') : 'focus'; }
 function selectFocusMode(mode) {
   if (!POMODORO_MODES[mode]) return;
+  if(state.workSession&&!state.workSession.endedAt&&!state.workSession.pausedAt&&mode!=='focus'){showToast('Finish and reflect on your task before switching to a break.');return;}
   if (state.focus.endAt) { showToast('Pause the timer before switching modes.'); return; }
   state.focus={mode,remaining:POMODORO_MODES[mode].seconds,endAt:null,completed:false,rounds:state.focus.rounds||0};
   save(); renderFocus();
@@ -1250,15 +1192,19 @@ function toggleFocus() {
   // Settle a deadline before handling a click, even when the tab was asleep.
   renderFocus();
   if (state.focus.endAt) {
+    if (state.focus.segmentStart) (state.focus.intervals ||= []).push([state.focus.segmentStart,Date.now()]);
+    state.focus.segmentStart=null;
     state.focus.remaining=Math.max(0,Math.ceil((state.focus.endAt-Date.now())/1000)); state.focus.endAt=null;
   } else {
     if (state.focus.completed || state.focus.remaining<=0) selectFocusMode(nextFocusMode());
+    state.focus.segmentStart=Date.now();
     state.focus.endAt=Date.now()+state.focus.remaining*1000;
     if (state.workSession && focusMode()==='focus') state.focus.overlapsWork=true;
   }
   save(); renderFocus();
 }
 function resetFocus() {
+  if(state.workSession?.pomodoro&&!state.workSession.endedAt){finishWork();return;}
   const mode=focusMode(), rounds=state.focus.rounds||0;
   state.focus={mode,rounds,remaining:POMODORO_MODES[mode].seconds,endAt:null,completed:false};
   save(); renderFocus(); showToast('Timer reset. Start when you’re ready.');
@@ -1269,8 +1215,10 @@ function renderFocus() {
   if (state.focus.endAt && remaining===0) {
     const finishedAt=state.focus.endAt, overlapsWork=Boolean(state.focus.overlapsWork);
     const rounds=(state.focus.rounds||0)+(mode==='focus'?1:0);
+    const intervals=state.focus.segmentStart ? [...(state.focus.intervals||[]),[state.focus.segmentStart,finishedAt]] : null;
     state.focus={mode,rounds,remaining:0,endAt:null,completed:true};
-    if (mode==='focus') state.focusSessions.push({date:localDate(new Date(finishedAt)),minutes:25,overlapsWork});
+    if (mode==='focus' || intervals) state.focusSessions.push({date:localDate(new Date(finishedAt)),minutes:settings.seconds/60,overlapsWork,mode,...(intervals?{intervals}:{})});
+    if (mode==='focus' && state.workSession?.pomodoro && !state.workSession.endedAt) {state.workSession.endedAt=finishedAt;finishWork();}
     save(); updateOverviewMetrics();
     showToast(mode==='focus'?'Focus complete. Take a well-earned break.':'Break complete. Ready for another small step?');
   }
@@ -1290,27 +1238,28 @@ function renderFocus() {
 }
 function updateOverviewMetrics() {
   const today = todayStr();
-  const tasks = state.tasks.filter(t => t.date === today);
+  const tasks = state.tasks.filter(t => t.date === today && t.category !== 'break' && t.status !== 'rescheduled');
   const done = tasks.filter(t => t.status === 'done').length;
   const pct = tasks.length ? done / tasks.length * 100 : 0;
   setText('task-total', tasks.length);
   setText('completion-note', done ? `${done} small win${done === 1 ? '' : 's'}` : 'A clean slate');
   document.getElementById('completion-fill').style.width = `${pct}%`;
   document.getElementById('sidebar-progress-fill').style.width = `${pct}%`;
-  const minutes = Math.floor(state.workLogs.filter(log => log.date === today).reduce((sum, log) => sum + log.actualMs, 0) / 60000) + state.focusSessions.filter(s => s.date === today && !s.overlapsWork).reduce((sum, s) => sum + s.minutes, 0);
-  setText('daily-focus', minutes >= 60 ? (minutes / 60).toFixed(1) : minutes);
+  const dailyWorkMs=TimeMetrics.daily(state,today).workMs;
+  const minutes = Math.floor(dailyWorkMs / 60000);
+  setText('daily-focus', minutes >= 60 ? (minutes / 60).toFixed(1) : minutes===0&&dailyWorkMs>0 ? '<1' : minutes);
   setText('daily-focus-unit', minutes >= 60 ? 'hrs' : 'min');
   setText('dashboard-streak', state.streak);
   setText('streak-note', state.streak ? 'Consistency looks good on you' : 'Your next chapter starts today');
   let activeDays = 0;
   for (let i = 0; i < 30; i++) {
     const date = new Date(); date.setDate(date.getDate() - i);
-    if (state.history[localDate(date)] > 0) activeDays++;
+    if (TimeMetrics.daily(state,localDate(date)).workMs>0 || state.history[localDate(date)]>0) activeDays++;
   }
   setText('active-days', activeDays);
   document.getElementById('streak-week').innerHTML = Array.from({ length: 7 }, (_, i) => {
     const date = new Date(); date.setDate(date.getDate() - 6 + i);
-    const complete = state.history[localDate(date)] > 0;
+    const complete = state.history[localDate(date)] > 0 || TimeMetrics.daily(state,localDate(date)).workMs>0;
     const label = date.toLocaleDateString([], { weekday: 'short' });
     return `<span class="${complete ? 'complete' : ''}" title="${label}: ${complete ? 'active' : 'no completed tasks'}">${complete ? '✓' : label[0]}</span>`;
   }).join('');
@@ -1332,10 +1281,10 @@ function durationLabel(ms) {
 }
 function workComparison(session) {
   const actual = workElapsed(session);
-  const planned = session.plannedMinutes * 60000;
+  const planned = (session.plannedMinutes || 0) * 60000;
   const difference = actual - planned;
   return { actualMs: actual, plannedMs: planned, differenceMs: difference,
-    label: Math.abs(difference) < 1000 ? 'Right on your planned time' : `${durationLabel(Math.abs(difference))} ${difference > 0 ? 'over' : 'under'} your planned time` };
+    label: !session.plannedMinutes ? 'No time target — recorded work only' : Math.abs(difference) < 1000 ? 'Right on your planned time' : `${durationLabel(Math.abs(difference))} ${difference > 0 ? 'over' : 'under'} your planned time` };
 }
 function renderWork() {
   const session = state.workSession;
@@ -1349,20 +1298,20 @@ function renderWork() {
   setText('work-elapsed', clockDuration(workElapsed(session)));
   setText('work-status', !session ? 'READY WHEN YOU ARE' : session.endedAt ? 'ONE LAST REFLECTION' : session.pausedAt ? 'TAKING A BREATHER' : 'YOU’RE WORKING ON');
   setText('work-title', session?.taskName || '');
-  setText('work-started', session ? `Started ${new Date(session.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · Planned ${session.plannedMinutes} min` : '');
+  setText('work-started', session ? `Started ${new Date(session.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${session.plannedMinutes ? session.plannedMinutes+' min planned' : 'No time limit'}` : '');
   setText('work-caption', session?.endedAt ? 'Timer stopped. Your reflection is waiting to be saved.' : session?.pausedAt ? 'Paused. Rest time is excluded from your work log.' : session ? 'Tracking automatically, even if you switch pages.' : 'Time starts when you do. Pauses don’t count.');
   setText('work-pause', session?.pausedAt ? 'Resume' : 'Pause');
   setText('work-finish', session?.endedAt ? 'Finish your reflection ↗' : 'Finish & reflect ↗');
   const select = document.getElementById('work-task');
   const selected = select.value;
-  const pending = state.tasks.filter(t => t.date === todayStr() && t.status === 'pending').sort((a,b) => a.start.localeCompare(b.start));
-  const options = '<option value="">Something else / a new task</option>' + pending.map(t => `<option value="${t.id}">${escHtml(t.name)} · ${t.start}</option>`).join('');
+  const pending = state.tasks.filter(t => t.date === todayStr() && t.category!=='break' && ['pending','partial'].includes(t.status)).sort((a,b) => a.start.localeCompare(b.start));
+  const options = '<option value="">Something else / a new task</option>' + pending.map(t => `<option value="${t.id}">${escHtml(t.name)} · ${formatTime(t.start)}</option>`).join('');
   if (select.innerHTML !== options) {
     select.innerHTML = options;
-    select.value = pending.some(t => String(t.id) === selected) ? selected : pending[0]?.id || '';
+    select.value = pending.some(t => String(t.id) === selected) ? selected : '';
     selectWorkTask();
   }
-  document.getElementById('today-work-list').innerHTML = pending.length ? pending.slice(0, 6).map(t => `<div class="today-work-item"><div><strong>${escHtml(t.name)}</strong><small>${t.start} – ${t.end} · ${taskDuration(t)} min planned</small></div><button class="text-button" onclick="startWork(${t.id})" ${session ? 'disabled' : ''}>Start ↗</button></div>`).join('') : '<div class="schedule-empty"><h3>A small start is enough.</h3><p>Add a task yourself, or let the AI planner map out your day.</p><a class="text-button" href="/planner" data-page="planner">Plan my day ↗</a></div>';
+  document.getElementById('today-work-list').innerHTML = pending.length ? pending.slice(0, 6).map(t => `<div class="today-work-item"><div><strong>${escHtml(t.name)}</strong><small>${formatTime(t.start)} – ${formatTime(t.end)} · ${taskDuration(t)} min planned</small></div><button class="text-button" onclick="startWork(${t.id})" ${session ? 'disabled' : ''}>Start ↗</button></div>`).join('') : '<div class="schedule-empty"><h3>A small start is enough.</h3><p>Add a task yourself, or let the AI planner map out your day.</p><a class="text-button" href="/planner" data-page="planner">Plan my day ↗</a></div>';
   renderWorkDetails();
   renderReminderNudge();
   renderWorkLessons();
@@ -1372,6 +1321,8 @@ function renderWork() {
 }
 function selectWorkTask() {
   const select = document.getElementById('work-task');
+  const chosen=state.tasks.find(t=>String(t.id)===select.value);
+  if(chosen)document.getElementById('work-expected').value=chosen.expected||'';
   document.getElementById('work-custom').hidden = Boolean(select.value);
   renderWorkDetails();
 }
@@ -1386,19 +1337,20 @@ function renderWorkDetails() {
 function startWork(taskId) {
   if (state.workSession) { showToast('Finish your current session before starting another.'); return; }
   const selected = taskId || Number(document.getElementById('work-task').value);
-  let task = state.tasks.find(t => t.id === selected && t.status === 'pending');
+  let task = state.tasks.find(t => t.id === selected && ['pending','partial'].includes(t.status));
+  if(task?.category==='break'){navigateToPage('work');chooseWorkMode('pomodoro');selectFocusMode(taskDuration(task)>=15?'long':'short');return;}
   const now = Date.now();
   let plannedMinutes;
   if (task) plannedMinutes = taskDuration(task);
   else {
     const name = document.getElementById('work-name').value.trim();
     plannedMinutes = Number(document.getElementById('work-planned').value);
-    if (!name || !Number.isFinite(plannedMinutes) || plannedMinutes < 1 || plannedMinutes > 1440) { showToast('Name your task and choose 1–1440 planned minutes.'); return; }
+    if (!name || !Number.isFinite(plannedMinutes) || plannedMinutes < 0 || plannedMinutes > 1440) { showToast('Name your task. A time target is optional.'); return; }
     // Unscheduled work can cross midnight without inventing a timetable block.
     task = { id: null, name };
   }
   if (state.focus.endAt) state.focus.overlapsWork = true;
-  state.workSession = { id: now, taskId: task.id, taskName: task.name, desc: task.desc || '', links: task.links || [], plannedMinutes, startedAt: now, endedAt: null, pausedAt: null, pausedMs: 0 };
+  state.workSession = { id: now, taskId: task.id, taskName: task.name, desc: task.desc || '', links: task.links || [], plannedMinutes, startedAt: now, endedAt: null, pausedAt: null, pausedMs: 0, pauseIntervals: [], expected: task.expected || document.getElementById('work-expected').value.trim() };
   save();
   navigateToPage('work');
   renderWork();
@@ -1406,21 +1358,24 @@ function startWork(taskId) {
 function pauseWork() {
   const session = state.workSession;
   if (!session || session.endedAt) return;
-  if (session.pausedAt) { session.pausedMs += Date.now() - session.pausedAt; session.pausedAt = null; }
+  if(session.pomodoro&&Boolean(state.focus.endAt)===!Boolean(session.pausedAt))toggleFocus();
+  if (session.pausedAt) { (session.pauseIntervals ||= []).push([session.pausedAt,Date.now()]); session.pausedMs += Date.now() - session.pausedAt; session.pausedAt = null; }
   else session.pausedAt = Date.now();
   save(); renderWork();
 }
 function finishWork() {
   const session = state.workSession;
   if (!session) return;
+  if(session.pomodoro&&state.focus.endAt)toggleFocus();
   if (!session.endedAt) {
     const now = Date.now();
-    if (session.pausedAt) { session.pausedMs += now - session.pausedAt; session.pausedAt = null; }
+    if (session.pausedAt) { (session.pauseIntervals ||= []).push([session.pausedAt,now]); session.pausedMs += now - session.pausedAt; session.pausedAt = null; }
     session.endedAt = now;
     save();
   }
   const comparison = workComparison(session);
-  document.getElementById('work-log-summary').innerHTML = `<strong>${escHtml(session.taskName)}</strong><div><span>Started</span><span>${new Date(session.startedAt).toLocaleString()}</span></div><div><span>Finished</span><span>${new Date(session.endedAt).toLocaleString()}</span></div><div><span>Tracked work</span><b>${durationLabel(comparison.actualMs)}</b></div><div><span>Planned</span><span>${session.plannedMinutes} min</span></div><p>${comparison.label}${session.pausedMs ? ` · ${durationLabel(session.pausedMs)} paused` : ''}</p>`;
+  document.getElementById('work-log-summary').innerHTML = `<strong>${escHtml(session.taskName)}</strong><div><span>Started</span><span>${new Date(session.startedAt).toLocaleString()}</span></div><div><span>Finished</span><span>${new Date(session.endedAt).toLocaleString()}</span></div><div><span>Tracked work</span><b>${durationLabel(comparison.actualMs)}</b></div><div><span>Planned</span><span>${session.plannedMinutes ? session.plannedMinutes+' min' : 'No target'}</span></div><p>${comparison.label}${session.pausedMs ? ` · ${durationLabel(session.pausedMs)} paused` : ''}</p>`;
+  prepareCorrections(session);
   renderWork(); openModal('modal-work-log');
 }
 function saveWorkLog() {
@@ -1429,8 +1384,12 @@ function saveWorkLog() {
   const did = document.getElementById('work-did').value.trim();
   const where = document.getElementById('work-where').value.trim();
   if (!did || !where) { showToast('Tell us what you did and where you worked.'); return; }
-  const outcome = document.getElementById('work-outcome').value === 'done' ? 'done' : 'pending';
+  if (!applyCorrections(session)) return;
+  const outcome = ['done','partial','pending'].includes(document.getElementById('work-outcome').value) ? document.getElementById('work-outcome').value : 'pending';
   const comparison = workComparison(session);
+  comparison.actualMs = Math.max(0,comparison.actualMs-(session.distractedMs||0));
+  comparison.differenceMs = comparison.actualMs-comparison.plannedMs;
+  comparison.label = session.plannedMinutes ? durationLabel(Math.abs(comparison.differenceMs))+' '+(comparison.differenceMs>=0?'over':'under')+' planned work time' : 'No time target';
   state.workLogs.push({ ...session, ...comparison, id: session.id, did, where, outcome, worth: ['yes','partly','no'].includes(document.getElementById('work-worth').value) ? document.getElementById('work-worth').value : 'yes', mistakes: document.getElementById('work-mistakes').value.trim(), lesson: document.getElementById('work-lesson').value.trim(), date: localDate(new Date(session.startedAt)) });
   const task = state.tasks.find(t => t.id === session.taskId);
   if (task) task.status = outcome;
@@ -1438,7 +1397,7 @@ function saveWorkLog() {
   if (todo) todo.done = outcome === 'done';
   state.workSession = null;
   save(); closeModal('modal-work-log');
-  clearForm(['work-did', 'work-where', 'work-name', 'work-mistakes', 'work-lesson']);
+  clearForm(['work-did', 'work-where', 'work-name', 'work-expected', 'work-mistakes', 'work-lesson']);
   document.getElementById('work-worth').value='yes';
   document.getElementById('work-outcome').value='done';
   updateDashboard(); renderWork(); renderJournal();
@@ -1446,13 +1405,15 @@ function saveWorkLog() {
 }
 function renderWorkHistory() {
   const date = document.getElementById('journal-date').value || todayStr();
-  const logs = state.workLogs.filter(log => log.date === date).slice().reverse();
+  const logs = state.workLogs.filter(log => log.startedAt < TimeMetrics.bounds(date)[1] && log.endedAt > TimeMetrics.bounds(date)[0]).slice().reverse();
   const container = document.getElementById('work-history');
   if (!container) return;
-  container.innerHTML = logs.length ? `<h2 class="card-title">Your tracked work</h2>` + logs.map(log => `<article class="card work-log-card"><div class="card-heading"><h3>${escHtml(log.taskName)}</h3><span class="small-pill">${durationLabel(log.actualMs)} tracked</span></div><p>${escHtml(log.did)}</p>${reflectionDetails(log)}<div class="work-log-meta"><span>Where: ${escHtml(log.where)}</span><span>${new Date(log.startedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} → ${new Date(log.endedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span></div><div class="work-log-meta"><span>${log.plannedMinutes} min planned · ${escHtml(log.label)}</span><span>${log.outcome === 'done' ? 'Completed' : 'More to do'}</span></div></article>`).join('') : '';
+  container.innerHTML = logs.length ? `<h2 class="card-title">Your tracked work</h2>` + logs.map(log => `<article class="card work-log-card"><div class="card-heading"><h3>${escHtml(log.taskName)}</h3><span class="small-pill">${durationLabel(log.actualMs)} tracked</span></div><p>${escHtml(log.did)}</p>${reflectionDetails(log)}<div class="work-log-meta"><span>Where: ${escHtml(log.where)}</span><span>${new Date(log.startedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} → ${new Date(log.endedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span></div><div class="work-log-meta"><span>${log.plannedMinutes ? log.plannedMinutes+' min planned' : 'No time target'} · ${escHtml(log.label)}</span><span>${log.outcome === 'done' ? 'Completed' : 'More to do'}</span></div></article>`).join('') : '';
 }
 
 let plannerDraft = null;
+let replanIds = [];
+let plannerRevision = null;
 let plannerController = null;
 let plannerReady = false;
 function initPlanner() {
@@ -1471,8 +1432,9 @@ function initPlanner() {
   if (!plannerReady) fetch('/api/config').then(r => r.json()).then(config => { plannerReady = true; setText('planner-connection', config.geminiConfigured ? 'Gemini connected' : 'Gemini setup needed'); }).catch(() => setText('planner-connection', 'Connection unavailable'));
 }
 function updatePlannerContext() {
+  replanIds=[];plannerRevision=null;
   const date = document.getElementById('planner-date').value;
-  const count = state.tasks.filter(t => t.date === date && t.status !== 'skipped').length;
+  const count = state.tasks.filter(t => t.date === date && !['skipped','rescheduled'].includes(t.status)).length;
   setText('planner-context', count ? `${count} existing block${count === 1 ? '' : 's'} will be kept in place. Your new plan fits around them.` : 'A clean slate. We’ll include focus time, breaks, and breathing room.');
 }
 function fillPlannerExample() { document.getElementById('planner-brief').value = 'Study DSA for 90 minutes, make progress on my coding project, and take a 30-minute walk. Keep lunch free from 13:00 to 14:00. Include breaks and leave some breathing room.'; }
@@ -1487,9 +1449,17 @@ async function generateDailyPlan() {
     context: document.getElementById('planner-detail-context').value.trim(),
     start: document.getElementById('planner-start').value, end: document.getElementById('planner-end').value,
     energy: document.getElementById('planner-energy').value, focusMinutes: Number(document.getElementById('planner-focus').value),
-    commitments: state.tasks.filter(t => t.date === date && t.status !== 'skipped').map(t => ({name:t.name,start:t.start,end:t.end})),
+    commitments: state.tasks.filter(t => t.date === date && !['skipped','rescheduled'].includes(t.status) && !replanIds.includes(t.id)).map(t => ({name:t.name,start:t.start,end:t.end})),
     goals: document.getElementById('planner-use-goals').checked ? state.goals.slice(0,20).map(g => `${g.name} (${g.current}/${g.target} ${g.unit || ''}${g.deadline ? ', due '+g.deadline : ''})`.slice(0,300)) : []
   };
+  try {request.availability=parseAvailability(document.getElementById('planner-windows').value,request.start,request.end);} catch(e){plannerError(e.message);return;}
+  if (request.availability.length) { request.start=request.availability[0].start;request.end=request.availability[request.availability.length-1].end; }
+  request.sourceTasks=state.tasks.filter(t=>replanIds.includes(t.id)&&t.date===date).map(t=>({id:String(t.id),name:t.name}));
+  const originalBrief=request.brief, originalContext=request.context;
+  const todos=state.todos.filter(t=>!t.done&&!t.archived&&t.date===date).slice(0,10).map(t=>t.name);
+  if(todos.length)request.context=(request.context+'\nTasks to consider today: '+todos.join('; ')).slice(0,500);
+  if(plannerRevision) request.brief=('Requested change: '+document.getElementById('planner-revision').value.trim()+'\nOriginal request: '+request.brief.slice(0,1000)+'\nRevise this proposed schedule: '+JSON.stringify(plannerRevision.blocks.map(b=>({name:b.name,start:b.start,end:b.end})))).slice(0,3000);
+  if(replanIds.length)request.brief=(request.brief+'\nRearrange these unfinished tasks into the available time: '+state.tasks.filter(t=>replanIds.includes(t.id)).map(t=>t.name).join('; ')).slice(0,3000);
   if (!request.brief || date < todayStr() || request.start >= request.end) { plannerError('Describe your priorities, choose today or a future date, and set a valid time window.'); return; }
   if (date === todayStr()) {
     const now = new Date(), minute = now.getHours()*60+now.getMinutes()+1;
@@ -1497,7 +1467,7 @@ async function generateDailyPlan() {
     if (request.start < currentTime) { plannerError('Your chosen start time has already passed. Choose Remaining today, Tomorrow, or adjust your hours before generating.'); return; }
     if (request.start >= request.end) { plannerError('That time window has already passed. Choose later hours or plan tomorrow.'); return; }
   }
-  state.plannerPreferences = { brief: request.brief, context: request.context, start: request.start, end: request.end, energy: request.energy, focusMinutes: request.focusMinutes };
+  state.plannerPreferences = { brief: originalBrief, context: originalContext, start: request.start, end: request.end, energy: request.energy, focusMinutes: request.focusMinutes };
   save();
   plannerController = new AbortController();
   document.getElementById('planner-fields').disabled = true;
@@ -1511,7 +1481,8 @@ async function generateDailyPlan() {
     const response = await fetch('/api/plan', { method:'POST', headers, body:JSON.stringify(request), signal:plannerController.signal });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Planning could not finish. Try again.');
-    plannerDraft = { ...result, start: request.start, end: request.end };
+    plannerDraft = { ...result, start: request.start, end: request.end, availability:request.availability, replaceIds:replanIds.slice() };
+    plannerRevision=null;
     renderPlannerDraft();
   } catch(error) {
     plannerDraft = oldDraft;
@@ -1529,7 +1500,9 @@ function renderPlannerDraft() {
   const draft = plannerDraft;
   if (!draft) return;
   const categories = {focus:'Focus',learning:'Learning',exercise:'Exercise',break:'Break',social:'Social',admin:'Admin',other:'Other'};
-  document.getElementById('planner-preview').innerHTML = `<div class="card-heading"><h2 class="card-title">Your proposed day</h2><span class="small-pill">${escHtml(draft.date)} · Gemini</span></div><p class="planner-summary">${escHtml(draft.summary)}</p><div class="planner-blocks">${draft.blocks.map((block,i) => `<div class="planner-block"><div class="planner-block-top"><span class="planner-block-number">${String(i+1).padStart(2,'0')}</span><input class="input" aria-label="Task ${i+1} name" maxlength="200" value="${escHtml(block.name)}" oninput="editPlanBlock(${i}, 'name', this.value)"/><button class="text-button" onclick="removePlanBlock(${i})" aria-label="Remove task ${i+1}">✕</button></div><div class="planner-block-times"><input class="input" type="time" aria-label="Task ${i+1} start" value="${block.start}" oninput="editPlanBlock(${i}, 'start', this.value)"/><span>→</span><input class="input" type="time" aria-label="Task ${i+1} end" value="${block.end}" oninput="editPlanBlock(${i}, 'end', this.value)"/><select class="input" aria-label="Task ${i+1} category" oninput="editPlanBlock(${i}, 'category', this.value)">${Object.entries(categories).map(([key,label]) => `<option value="${key}" ${block.category===key?'selected':''}>${label}</option>`).join('')}</select></div><p>${escHtml(block.desc)}</p></div>`).join('')}</div>${draft.unscheduled.length?`<div class="planner-unscheduled"><strong>For another day</strong><ul>${draft.unscheduled.map(item=>`<li>${escHtml(item)}</li>`).join('')}</ul></div>`:''}<div class="planner-accept"><p>Only these new blocks will be added. Existing tasks stay as they are.</p><button class="btn btn-primary" onclick="acceptDailyPlan()" ${draft.blocks.length?'':'disabled'}>Add ${draft.blocks.length} blocks to my day ↗</button></div>`;
+  document.getElementById('planner-refine').hidden=false;
+  document.getElementById('planner-preview').innerHTML = `<div class="card-heading"><h2 class="card-title">Your proposed day</h2><span class="small-pill">${escHtml(draft.date)} · Gemini</span></div><p class="planner-summary">${escHtml(draft.summary)}</p><div class="planner-blocks">${draft.blocks.map((block,i) => `<div class="planner-block"><div class="planner-block-top"><span class="planner-block-number">${String(i+1).padStart(2,'0')}</span><input class="input" aria-label="Task ${i+1} name" maxlength="200" value="${escHtml(block.name)}" oninput="editPlanBlock(${i}, 'name', this.value)"/><button class="text-button" onclick="removePlanBlock(${i})" aria-label="Remove task ${i+1}">✕</button></div><div class="planner-block-times"><input class="input" type="time" aria-label="Task ${i+1} start" value="${block.start}" oninput="editPlanBlock(${i}, 'start', this.value)"/><span>→</span><input class="input" type="time" aria-label="Task ${i+1} end" value="${block.end}" oninput="editPlanBlock(${i}, 'end', this.value)"/><select class="input" aria-label="Task ${i+1} category" oninput="editPlanBlock(${i}, 'category', this.value)">${Object.entries(categories).map(([key,label]) => `<option value="${key}" ${block.category===key?'selected':''}>${label}</option>`).join('')}</select></div><p>${escHtml(block.desc)}</p></div>`).join('')}</div>${draft.unscheduled.length?`<div class="planner-unscheduled"><strong>For another day</strong><ul>${draft.unscheduled.map(item=>`<li>${escHtml(item)}</li>`).join('')}</ul></div>`:''}<div class="planner-accept"><p>${draft.replaceIds?.length ? 'Replaces '+draft.replaceIds.length+' unfinished blocks. Completed work stays intact; previous blocks remain in history. Any original task without a replacement returns to Tasks / Later.' : 'Existing tasks stay in place. These new blocks will be added.'}</p><button class="btn btn-primary" onclick="acceptDailyPlan()" ${draft.blocks.length?'':'disabled'}>Apply timetable · ${draft.blocks.length} blocks ↗</button></div>`;
+  installTimeControls();
 }
 function editPlanBlock(index, field, value) { if (plannerDraft?.blocks[index]) plannerDraft.blocks[index][field] = value.trim(); }
 function removePlanBlock(index) { plannerDraft?.blocks.splice(index,1); renderPlannerDraft(); }
@@ -1537,16 +1510,23 @@ function acceptDailyPlan() {
   if (!plannerDraft?.blocks.length) return;
   const draft = plannerDraft;
   const blocks = draft.blocks.slice().sort((a,b)=>a.start.localeCompare(b.start));
-  const existing = state.tasks.filter(t=>t.date===draft.date && t.status!=='skipped');
+  if ((draft.replaceIds||[]).some(id=>{const t=state.tasks.find(t=>t.id===id);return !t||t.date!==draft.date||!['pending','partial'].includes(t.status)||state.workSession?.taskId===id;})){plannerError('A task changed or started after this preview. Generate a fresh plan before applying.');return;}
+  const existing = state.tasks.filter(t=>t.date===draft.date && !['skipped','rescheduled'].includes(t.status) && !(draft.replaceIds||[]).includes(t.id));
   const validTime = t=>/^([01]\d|2[0-3]):[0-5]\d$/.test(t);
   for (let i=0;i<blocks.length;i++) {
     const block=blocks[i];
     if (!block.name || !validTime(block.start) || !validTime(block.end) || block.start>=block.end || block.start<draft.start || block.end>draft.end) { plannerError('Check your edited task names and times. Keep each block inside the original time window.'); return; }
+    if (draft.availability?.length && !draft.availability.some(w=>block.start>=w.start&&block.end<=w.end)){plannerError('Keep each block inside one of your available windows.');return;}
     if ((i && block.start<blocks[i-1].end) || existing.some(t=>block.start<t.end && block.end>t.start)) { plannerError('Some blocks overlap one another or a task added since this plan was generated. Adjust their times first.'); return; }
   }
   const base = Math.max(Date.now(), ...state.tasks.map(t=>Number(t.id)||0)) + 1;
-  state.tasks.push(...blocks.map((block,i)=>({...block,id:base+i,date:draft.date,links:[],status:'pending',source:'gemini'})));
+  for(const task of state.tasks)if((draft.replaceIds||[]).includes(task.id)){task.previousStatus=task.status;task.rescheduledAt=Date.now();task.status='rescheduled';task.carryDecision='replanned';}
+  const notScheduled=state.tasks.filter(t=>(draft.replaceIds||[]).includes(t.id)&&!blocks.some(b=>String(b.sourceTaskId)===String(t.id)||b.name===t.name));
+  for(const t of notScheduled)state.todos.push({id:Math.max(Date.now(),...state.todos.map(x=>x.id||0))+1,name:t.name,notes:t.expected||t.desc||'',date:'',minutes:taskDuration(t),done:false,archived:false,sourceTaskId:t.id});
+  replanIds=[];plannerRevision=null;
+  state.tasks.push(...blocks.map((block,i)=>({...block,id:base+i,date:draft.date,links:[],status:'pending',source:'gemini',expected:(block.desc.match(/Done when:\s*(.+)/i)?.[1]||'').slice(0,500)})));
   save(); plannerDraft = null;
+  document.getElementById('planner-refine').hidden=true;
   document.getElementById('planner-preview').innerHTML = '<div class="planner-placeholder"><h2>Your day is ready.</h2><p>Your blocks are now in the timetable. Head to Work & reflect to start a task.</p><a class="btn btn-primary" href="/work" data-page="work">Start working ↗</a></div>';
   document.getElementById('timetable-date').value=draft.date;
   updateDashboard(); navigateToPage('timetable');
@@ -1558,6 +1538,7 @@ function acceptDailyPlan() {
 // ═══════════════════════════════════════
 function init() {
   load();
+  initWorkflow();
 
   // Set today's date in pickers
   const today = todayStr();
@@ -1664,12 +1645,12 @@ function todoDue(t) { return !t.done && !t.archived && Boolean(t.date) && t.date
 function sortedTodos() { return state.todos.filter(t=>!t.done&&!t.archived).slice().sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999') || a.id-b.id); }
 function resetTodoForm() {
   editingTodoId=null; clearForm(['todo-name','todo-notes','todo-date']);
-  document.getElementById('todo-minutes').value='25';
+  document.getElementById('todo-minutes').value='';
   document.getElementById('todo-cancel').hidden=true; setText('todo-form-title','Save a thought');
 }
 function saveTodo() {
   const name=document.getElementById('todo-name').value.trim(), date=document.getElementById('todo-date').value, minutes=Number(document.getElementById('todo-minutes').value);
-  if (!name || !Number.isInteger(minutes) || minutes<1 || minutes>1440) { showToast('Name your task and choose 1–1440 minutes.'); return; }
+  if (!name || !Number.isInteger(minutes) || minutes<0 || minutes>1440) { showToast('Name your task. A time target is optional.'); return; }
   if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)))) { showToast('Choose a valid date.'); return; }
   const fields={name,date,minutes,notes:document.getElementById('todo-notes').value.trim()};
   const item=state.todos.find(t=>t.id===editingTodoId);
@@ -1696,20 +1677,20 @@ function startTodo(id) {
   if (state.workSession) { showToast('Finish your current session first.'); return; }
   const t=state.todos.find(t=>t.id===id&&!t.done&&!t.archived); if (!t) return;
   const now=Date.now(); if (state.focus.endAt) state.focus.overlapsWork=true;
-  state.workSession={id:now,taskId:null,todoId:id,taskName:t.name,desc:t.notes||'',links:[],plannedMinutes:t.minutes||25,startedAt:now,endedAt:null,pausedAt:null,pausedMs:0};
+  state.workSession={id:now,taskId:null,todoId:id,taskName:t.name,desc:t.notes||'',links:[],plannedMinutes:t.minutes||0,startedAt:now,endedAt:null,pausedAt:null,pausedMs:0,pauseIntervals:[],expected:t.notes||''};
   save(); navigateToPage('work');
 }
 function suggestTodo() {
   const all=sortedTodos(), due=all.filter(todoDue), pool=due.length?due:all;
   if (!pool.length) { setText('todo-suggestion-text','Your list is clear. Add something you want to do later.'); return; }
   const t=pool[Math.floor(Math.random()*pool.length)];
-  document.getElementById('todo-suggestion-text').innerHTML=`<strong>${escHtml(t.name)}</strong> · ${t.minutes} min <button class="text-button" onclick="startTodo(${t.id})">Start this ↗</button>`;
+  document.getElementById('todo-suggestion-text').innerHTML=`<strong>${escHtml(t.name)}</strong> · ${t.minutes ? t.minutes+' min' : 'No time target'} <button class="text-button" onclick="startTodo(${t.id})">Start this ↗</button>`;
 }
 function renderTodos() {
   const filter=document.getElementById('todo-filter').value||'open';
   const items=state.todos.filter(t=>filter==='archived'?t.archived:!t.archived&&(filter==='done'?t.done:!t.done&&(filter==='due'?todoDue(t):filter==='later'?!todoDue(t):true))).slice().sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
   setText('todo-count',`${items.length} items`); setText('todo-suggestion-text','Pick something you’ve been meaning to do.');
-  document.getElementById('todo-list').innerHTML=items.length?items.map(t=>`<article class="card todo-item"><div class="card-heading"><h3>${escHtml(t.name)}</h3><span class="small-pill">${t.done?'Completed':t.date?(todoDue(t)?'Due · ':'')+escHtml(t.date):'Someday'}</span></div><p>${escHtml(t.notes||'')}</p><div class="todo-actions"><span>${t.minutes} min</span>${!t.done&&!t.archived?`<button class="btn btn-primary" onclick="startTodo(${t.id})">Start ↗</button><button class="text-button" onclick="changeTodo(${t.id},'tomorrow')">Tomorrow</button>`:''}${!t.archived?`<button class="text-button" onclick="changeTodo(${t.id},'done')">${t.done?'Reopen':'Mark done'}</button>`:''}<button class="text-button" onclick="editTodo(${t.id})">Edit</button><button class="text-button" onclick="changeTodo(${t.id},'archive')">${t.archived?'Restore':'Archive'}</button></div></article>`).join(''):'<div class="card todo-item"><h3>A little breathing room.</h3><p>No items in this view. Save a task for later or try another view.</p></div>';
+  document.getElementById('todo-list').innerHTML=items.length?items.map(t=>`<article class="card todo-item"><div class="card-heading"><h3>${escHtml(t.name)}</h3><span class="small-pill">${t.done?'Completed':t.date?(todoDue(t)?'Due · ':'')+escHtml(t.date):'Someday'}</span></div><p>${escHtml(t.notes||'')}</p><div class="todo-actions"><span>${t.minutes ? t.minutes+' min' : 'No time target'}</span>${!t.done&&!t.archived?`<button class="btn btn-primary" onclick="startTodo(${t.id})">Start ↗</button><button class="text-button" onclick="changeTodo(${t.id},'tomorrow')">Tomorrow</button>`:''}${!t.archived?`<button class="text-button" onclick="changeTodo(${t.id},'done')">${t.done?'Reopen':'Mark done'}</button>`:''}<button class="text-button" onclick="editTodo(${t.id})">Edit</button><button class="text-button" onclick="changeTodo(${t.id},'archive')">${t.archived?'Restore':'Archive'}</button></div></article>`).join(''):'<div class="card todo-item"><h3>A little breathing room.</h3><p>No items in this view. Save a task for later or try another view.</p></div>';
 }
 function renderReminderNudge() {
   const el=document.getElementById('today-reminders'); if (!el) return;
@@ -1782,5 +1763,98 @@ function setPlannerDay(choice) {
     document.getElementById('planner-start').value=`${String(Math.floor(minutes/60)).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`;
     if (document.getElementById('planner-end').value<=document.getElementById('planner-start').value) document.getElementById('planner-end').value='23:59';
   }
-  plannerError(''); updatePlannerContext();
+  plannerError(''); updatePlannerContext(); syncTimeControls();
+  return true;
+}
+
+// Daily workflow: old records remain readable; new fields are additive.
+let editingTaskId=null;
+let workflowDate=null;
+function formatTime(time) { const [h,m]=String(time).split(':').map(Number);return `${h%12||12}:${String(m||0).padStart(2,'0')} ${h>=12?'PM':'AM'}`; }
+function taskLabel(t) {
+  if(t.status==='done')return 'Completed';if(t.status==='partial')return 'Partly completed';if(t.status==='rescheduled')return 'Rescheduled';if(t.status==='skipped')return 'Skipped';
+  return +new Date(t.date+'T'+t.end)<Date.now()?'Missed':'Planned';
+}
+function chooseScheduleDay(date){document.getElementById('timetable-date').value=date;renderTimetable();}
+function shiftScheduleDay(delta){const d=new Date(document.getElementById('timetable-date').value+'T12:00:00');d.setDate(d.getDate()+delta);chooseScheduleDay(localDate(d));}
+function editTask(id){const task=state.tasks.find(t=>t.id===id);if(!task)return;openAddTask();editingTaskId=id;for(const [field,key] of Object.entries({name:'name',desc:'desc',expected:'expected',start:'start',end:'end',date:'date',category:'category'}))document.getElementById('task-'+field).value=task[key]||'';document.getElementById('task-links').value=(task.links||[]).join('\n');syncTimeControls();}
+function localInputTime(ms){const d=new Date(ms);return localDate(d)+'T'+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
+function prepareCorrections(s){
+  document.getElementById('correct-start').value=localInputTime(s.startedAt);document.getElementById('correct-end').value=localInputTime(s.endedAt);
+  document.getElementById('correct-break').value=Number(((s.pausedMs||0)/60000).toFixed(3));document.getElementById('correct-distraction').value=Number(((s.distractedMs||0)/60000).toFixed(3));
+  setText('reflection-expected',s.expected?'Expected: '+s.expected:'No expected outcome set. Record what you achieved below.');
+  setText('correction-error','');
+}
+function applyCorrections(s){
+  const startValue=document.getElementById('correct-start').value,endValue=document.getElementById('correct-end').value;
+  const start=startValue===localInputTime(s.startedAt)?s.startedAt:+new Date(startValue),end=endValue===localInputTime(s.endedAt)?s.endedAt:+new Date(endValue);
+  const rawBreak=Number(document.getElementById('correct-break').value),distraction=Number(document.getElementById('correct-distraction').value)*60000;
+  const pause=rawBreak===Number(((s.pausedMs||0)/60000).toFixed(3))?(s.pausedMs||0):rawBreak*60000;
+  if(!Number.isFinite(start)||!Number.isFinite(end)||!Number.isFinite(pause)||!Number.isFinite(distraction)||start>=end||end>Date.now()+1000||pause<0||distraction<0||pause+distraction>end-start){setText('correction-error','Check your start/end and deductions. Breaks plus distractions cannot exceed the session, and the end cannot be in the future.');return false;}
+  if(state.workLogs.some(l=>start<l.endedAt&&end>l.startedAt)){setText('correction-error','These times overlap another work session. Adjust them so work is not counted twice.');return false;}
+  if(start!==s.startedAt||end!==s.endedAt||pause!==(s.pausedMs||0)) {s.originalTiming ||= {startedAt:s.startedAt,endedAt:s.endedAt,pausedMs:s.pausedMs};delete s.pauseIntervals;}
+  Object.assign(s,{startedAt:start,endedAt:end,pausedMs:pause,distractedMs:distraction});return true;
+}
+function rebuildHistory(){
+  const dates=new Set([todayStr(),...state.tasks.map(t=>t.date),...state.workLogs.map(l=>l.date),...state.focusSessions.map(l=>l.date)]);
+  // Include every local day touched by an overnight session.
+  for(const l of state.workLogs){const d=new Date(l.startedAt);for(let n=0;n<366&&+d<l.endedAt;n++){dates.add(localDate(d));d.setHours(0,0,0,0);d.setDate(d.getDate()+1);}}
+  for(const date of dates){const m=TimeMetrics.daily(state,date);state.history[date]=m.completion;}
+}
+function renderDailySummary(){
+  const el=document.getElementById('daily-accounting');if(!el)return;
+  if(workflowDate&&workflowDate!==todayStr()){const old=workflowDate;for(const id of ['timetable-date','journal-date','planner-date','review-date']){const input=document.getElementById(id);if(input?.value===old)input.value=todayStr();}if(!state.focus.endAt)state.focus.rounds=0;}
+  workflowDate=todayStr();
+  const m=TimeMetrics.daily(state,todayStr());const min=n=>n>0&&n<60000?'<1 min':`${Math.floor(n/60000)} min`;
+  el.innerHTML=`<div class="card-heading"><div><div class="eyebrow">AN HONEST LOOK AT TODAY</div><h2>Intention meets reality.</h2></div><a class="text-button" href="/progress" data-page="progress">Review my day ↗</a></div><div class="accounting-grid">${[['Planned',m.plannedMs],['Recorded work',m.workMs],['Reported distractions',m.distractedMs],['Breaks',m.breakMs],['Untracked scheduled time',m.untrackedMs]].map(([label,n])=>`<div><strong>${min(n)}</strong><span>${label}</span></div>`).join('')}</div><p>${m.done} completed · ${m.partial} partly completed · ${m.missed} missed or skipped · ${m.pending} upcoming</p><details><summary>How is this calculated?</summary><p>Work = elapsed tracked time minus pauses and reported distractions. Overlapping timers count once. Completion = completed planned work tasks ÷ planned work tasks; breaks and deliberately rescheduled blocks are excluded. Partial tasks are shown separately. Untracked = elapsed scheduled time without a session, not assumed wasted time. Overnight sessions split at local midnight. Aggregate corrections and distractions are distributed proportionally across a session because their exact timestamps are unknown. Older Pomodoros without timestamps retain their original daily totals. A streak day has a completed task or recorded work; it is not a productivity score.</p></details>`;
+}
+function carryCandidates(){return state.tasks.filter(t=>t.date<todayStr()&&['pending','partial'].includes(t.status)&&!t.carryDecision&&t.category!=='break');}
+function renderCarryForward(){const el=document.getElementById('carry-forward');if(!el)return;const items=carryCandidates();el.hidden=!items.length;el.innerHTML=`<div class="eyebrow">UNFINISHED, NOT FORGOTTEN</div><h2>What comes with you today?</h2><p>Yesterday’s record stays intact. Choose what deserves your attention next.</p>${items.map(t=>`<div class="carry-row"><div><strong>${escHtml(t.name)}</strong><small>${escHtml(t.date)} · ${escHtml(taskLabel(t))}</small></div><div><button class="btn btn-ghost" onclick="carryTask(${t.id},'today')">Today</button><button class="text-button" onclick="carryTask(${t.id},'later')">Later</button><button class="text-button" onclick="carryTask(${t.id},'drop')">Drop</button></div></div>`).join('')}`;const plannerCarry=document.getElementById('planner-carry');if(plannerCarry){plannerCarry.hidden=el.hidden;plannerCarry.innerHTML=el.innerHTML;}}
+function carryTask(id,choice){const t=carryCandidates().find(t=>t.id===id);if(!t||!['today','later','drop'].includes(choice))return;t.carryDecision=choice;if(choice!=='drop')state.todos.push({id:Math.max(Date.now(),...state.todos.map(t=>t.id||0))+1,name:t.name,notes:t.expected||t.desc||'',date:choice==='today'?todayStr():'',minutes:taskDuration(t),done:false,archived:false,sourceTaskId:id});save();renderCarryForward();renderTodos();showToast(choice==='drop'?'Removed from carry-forward. History preserved.':'Added to Tasks. AI can include it when you plan.');}
+function renderDailyReview(){const el=document.getElementById('daily-review-content');if(!el)return;const date=document.getElementById('review-date').value||todayStr();const m=TimeMetrics.daily(state,date);const logs=state.workLogs.filter(l=>l.startedAt<TimeMetrics.bounds(date)[1]&&l.endedAt>TimeMetrics.bounds(date)[0]);el.innerHTML=`<p>${m.done}/${m.total} planned tasks completed · ${m.partial} partial · ${m.missed} missed or skipped.</p><p>${Math.round(m.plannedMs/60000)} min planned · ${Math.round(m.workMs/60000)} min work · ${Math.round(m.distractedMs/60000)} min distractions.</p>${logs.map(l=>`<article class="review-item"><h3>${escHtml(l.taskName)}</h3><p><b>Expected:</b> ${escHtml(l.expected||'Not set')}</p><p><b>Achieved:</b> ${escHtml(l.did)}</p>${l.mistakes?`<p><b>Obstacle:</b> ${escHtml(l.mistakes)}</p>`:''}${l.lesson?`<p><b>Next time:</b> ${escHtml(l.lesson)}</p>`:''}</article>`).join('')||'<p>No saved work reflections for this day.</p>'}`;document.getElementById('review-improvement').value=state.dailyReviews?.[date]||'';}
+function saveDailyReview(){const date=document.getElementById('review-date').value||todayStr();(state.dailyReviews ||= {})[date]=document.getElementById('review-improvement').value.trim();save();showToast('Your next-day improvement is saved.');}
+function initWorkflow(){
+  workflowDate=todayStr();document.getElementById('review-date').value=todayStr();
+  installTimeControls();
+  setInterval(()=>{syncTimeControls();if(workflowDate!==todayStr()){updateDashboard();renderTimetable();renderDailyReview();}},1000);
+}
+// Explicit AM/PM controls keep browser/OS locale from changing the time format.
+function installTimeControls(){
+  document.querySelectorAll('input[type="time"]').forEach(input=>{
+    if(input.dataset.clockReady)return;input.dataset.clockReady='true';input.hidden=true;input.required=false;
+    const box=document.createElement('div');box.className='clock-input';
+    box.innerHTML=`<select aria-label="Hour">${Array.from({length:12},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select><span>:</span><select aria-label="Minute">${Array.from({length:60},(_,i)=>`<option value="${i}">${String(i).padStart(2,'0')}</option>`).join('')}</select><select aria-label="AM or PM"><option>AM</option><option>PM</option></select>`;
+    input.after(box);const controls=box.querySelectorAll('select');
+    controls.forEach(c=>c.addEventListener('change',()=>{const h=Number(controls[0].value)%12+(controls[2].value==='PM'?12:0);input.value=String(h).padStart(2,'0')+':'+String(controls[1].value).padStart(2,'0');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}));
+  });syncTimeControls();
+}
+function syncTimeControls(){document.querySelectorAll('input[data-clock-ready]').forEach(input=>{const controls=input.nextElementSibling?.querySelectorAll('select');if(!controls?.length)return;const [h,m]=(input.value||'09:00').split(':').map(Number);controls[0].value=h%12||12;controls[1].value=m;controls[2].value=h>=12?'PM':'AM';});}
+function chooseWorkMode(mode){document.getElementById('stopwatch-panel').hidden=mode!=='stopwatch';document.getElementById('pomodoro-panel').hidden=mode!=='pomodoro';document.querySelectorAll('[data-work-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.workMode===mode)));}
+
+function parseAvailability(raw,start,end){
+  if(!raw.trim())return [{start,end}];
+  function parse(value){const m=value.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);if(!m||+m[1]<1||+m[1]>12||+(m[2]||0)>59)throw Error('Use times like 10 AM - 1 PM, 4 PM - 6 PM.');return String(+m[1]%12+(m[3].toUpperCase()==='PM'?12:0)).padStart(2,'0')+':'+(m[2]||'00');}
+  const windows=raw.split(/[,;\n]/).filter(s=>s.trim()).map(s=>{const pair=s.split(/\s*(?:-|–|—|to)\s*/i);if(pair.length!==2)throw Error('Separate each available window with a comma.');return {start:parse(pair[0]),end:parse(pair[1])};}).sort((a,b)=>a.start.localeCompare(b.start));
+  if(windows.length>8||windows.some((w,i)=>w.start>=w.end||(i&&w.start<windows[i-1].end)))throw Error('Use up to eight non-overlapping time windows on the same day.');return windows;
+}
+function reviseDailyPlan(){if(!plannerDraft||!document.getElementById('planner-revision').value.trim()){plannerError('Describe the change you want first.');return;}plannerRevision=plannerDraft;generateDailyPlan();}
+function replanRemainingDay(){
+  if(!setPlannerDay('remaining'))return;document.getElementById('planner-windows').value='';
+  const date=document.getElementById('planner-date').value;
+  replanIds=state.tasks.filter(t=>t.date===date&&['pending','partial'].includes(t.status)&&t.id!==state.workSession?.taskId).map(t=>t.id);
+  if(!replanIds.length){plannerError('No unfinished blocks to rearrange. You can still create a new plan.');return;}
+  if(!document.getElementById('planner-brief').value.trim())document.getElementById('planner-brief').value='Fit my unfinished tasks into the remaining day, with breaks. Explain anything that cannot fit.';
+  setText('planner-context','Preview mode: '+replanIds.length+' unfinished blocks can move. Completed and running work stays in place.');
+  generateDailyPlan();
+}
+
+function toggleTaskPomodoro(){
+  if(state.workSession?.endedAt){finishWork();return;}
+  if(focusMode()==='focus'&&!state.workSession&&!state.focus.completed){
+    const name=document.getElementById('pomodoro-task-name').value.trim();if(!name){showToast('Name the task you want to focus on.');document.getElementById('pomodoro-task-name').focus();return;}
+    document.getElementById('work-task').value='';document.getElementById('work-name').value=name;document.getElementById('work-planned').value='25';startWork();state.workSession.pomodoro=true;chooseWorkMode('pomodoro');
+  } else if(focusMode()==='focus'&&state.workSession&&!state.workSession.pomodoro){showToast('Finish your stopwatch session before starting a task Pomodoro.');return;}
+  if(state.focus.completed&&nextFocusMode()==='focus'&&!state.workSession){selectFocusMode('focus');toggleTaskPomodoro();return;}
+  if(state.workSession?.pomodoro&&!state.workSession.endedAt&&focusMode()==='focus'){const s=state.workSession;if(state.focus.endAt)s.pausedAt=Date.now();else if(s.pausedAt){(s.pauseIntervals ||= []).push([s.pausedAt,Date.now()]);s.pausedMs+=Date.now()-s.pausedAt;s.pausedAt=null;}}
+  toggleFocus();save();renderWork();
 }

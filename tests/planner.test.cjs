@@ -42,3 +42,15 @@ test('planner accepts optional context and bounds it before sending to Gemini', 
   assert.equal(validateRequest(request).context,'');
   assert.throws(()=>validateRequest({...request,context:'x'.repeat(501)}), /context/);
 });
+
+test('availability windows reject blocks in gaps and overlapping windows',()=>{
+ const req=validateRequest({...request,availability:[{start:'09:00',end:'09:30'},{start:'11:00',end:'12:00'}]});
+ assert.throws(()=>validatePlan(plan,req),/windows/);
+ assert.throws(()=>validateRequest({...request,availability:[{start:'09:00',end:'11:00'},{start:'10:00',end:'12:00'}]}),/windows/);
+ assert.equal(validatePlan({...plan,blocks:[{...block,end:'09:25'}]},req).blocks.length,1);
+});
+test('replanning only accepts known source task IDs',()=>{
+ const req=validateRequest({...request,sourceTasks:[{id:'7',name:'Arrays'}]});
+ assert.equal(validatePlan({...plan,blocks:[{...block,sourceTaskId:'7'}]},req).blocks[0].sourceTaskId,'7');
+ assert.throws(()=>validatePlan({...plan,blocks:[{...block,sourceTaskId:'8'}]},req),/unknown task/);
+});

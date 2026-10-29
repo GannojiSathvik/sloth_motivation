@@ -29,7 +29,7 @@ Most productivity apps:
 - ⚡ **Daily Fuel**: Quotes to remind you that even sloths get things done eventually.
 - ⏱️ **Start → finish → reflect**: Automatic elapsed time, pause exclusion, and planned-versus-actual comparison. Record what you did and where you worked.
 - ✦ **Gemini planner**: Describe your day, review an editable schedule around existing commitments, then add it to your timetable.
-- 🔒 **Optional private cloud saving**: Supabase accounts sync tasks, goals, work logs, and reflections. Signed-out work stays in browser storage. Active timers stay on the device where they started.
+- 🔒 **Local saving**: Entries stay in this browser. Supabase and sign-in are paused; download a backup from Local storage.
 
 ---
 
@@ -59,18 +59,19 @@ Point your favorite web browser to:
 
 | Page | Route | What you'll find |
 | --- | --- | --- |
-| 🏡 **Overview** | `/` | Daily stats, focus timer, upcoming schedule, and summaries across your workspace |
-| ⏱️ **Work & reflect** | `/work` | Start a task, track elapsed time, and save your reflection |
-| 📅 **Timetable** | `/timetable` | Time-blocking without the anxiety |
-| 📖 **Journal** | `/journal` | Space to reflect, breathe, and celebrate micro-wins |
-| 📊 **My Progress** | `/progress` | 30-day activity heatmap and your glorious streak |
-| ✦ **AI planner** | `/planner` | Describe priorities, preview and edit blocks, then add them |
-| 🔒 **Cloud account** | `/account` | Sign in, sync, and manage your private workspace |
-| 💡 **Daily Fuel** | `/fuel` | Wisdom and motivation when the couch is calling your name |
+| **Dashboard** | `/` | Planned versus recorded time, outcomes, carry-forward, next actions |
+| **Tasks** | `/todos` | To-dos, reminder dates, later items |
+| **Focus** | `/work` | Stopwatch, task-linked Pomodoro, finish and reflect |
+| **Planner** | `/planner` | AI previews, plain-language revisions, available windows, replanning |
+| Timetable (Planner subpage) | `/timetable` | Week selector and editable AM/PM agenda |
+| **Progress** | `/progress` | Daily review, saved next-day improvement, trends and goals |
+| Reflections (Progress subpage) | `/journal` | Work logs and journal entries |
+| Daily fuel (Progress subpage) | `/fuel` | Quotes |
+| Local storage | `/account` | Backup and previously cached workspaces |
 
 ---
 
-## Cloud storage setup
+## Archived cloud storage setup (not active in the current app)
 
 1. Choose a Supabase project and apply `supabase/schema.sql` once. The table is named `sloth_workspaces` to keep this app separate from other apps.
 2. Add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` to `.env`, then restart the server. Use a publishable key, never a service-role key.
@@ -82,9 +83,9 @@ Row-level security restricts every row to its owner. Changes save automatically 
 
 The build publishes only browser assets in `dist/`. The `/api/config` and `/api/plan` functions run on the server, and navigation routes keep working on direct visits. Set `GEMINI_API_KEY`, `GEMINI_MODEL`, `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY` in Vercel's project environment settings before redeploying. Local `.env` values are never uploaded.
 
-The hosted AI planner requires a valid Supabase sign-in. Its short request cooldown is per function instance; configure provider quotas for a publicly available deployment. The local planner runs without sign-in on loopback only.
+The hosted AI planner currently returns an explicit paused message. Adding environment variables alone does not enable it. The local planner runs without sign-in on loopback only. Public AI requires a separate abuse-protection design before re-enablement.
 
-When you generate a plan, your planning brief, selected goals, and existing commitments for that date are sent to Gemini. Work reflections are saved to Supabase only when you sign in; they are not sent to Gemini. Plans remain drafts until you accept them. Time tracking measures elapsed time between your clicks, not keyboard activity or proof of work.
+When you generate a plan, your planning brief, selected goals, and existing commitments for that date are sent to Gemini. Work reflections stay in local browser storage and are not sent to Gemini. Plans remain drafts until you accept them. Time tracking measures elapsed time between your clicks, not keyboard activity or proof of work.
 
 ## 🧪 Testing
 
@@ -119,8 +120,22 @@ In Supabase Authentication → URL Configuration, allow `http://127.0.0.1:4174/a
 
 Use `/todos` to capture tasks with optional reminder dates and planned minutes. Due items appear on Work & reflect and are summarized on Overview; choose “Pick a task for me” when unsure what to do. Start opens the work timer immediately. Items can be completed, reopened, moved to tomorrow, or archived and restored. Reminders are in-app only, without background notifications.
 
-Finish & reflect stops timing before asking what you did, where you worked, whether it was worthwhile, mistakes or obstacles, and one lesson for next time. Reflections appear in the journal; the latest three lessons are available on Work & reflect, with the latest lesson summarized on Overview. Older logs remain compatible. To-dos and reflections use the existing private Supabase workspace, so no new table migration is needed.
+Finish & reflect stops timing before asking what you did, where you worked, whether it was worthwhile, mistakes or obstacles, and one lesson for next time. Reflections appear in the journal; the latest three lessons are available on Work & reflect, with the latest lesson summarized on Overview. Older logs remain compatible. To-dos and reflections use local browser storage; no database setup is required.
 
 ## Pomodoro
 
-The overview includes 25-minute focus, 5-minute short breaks, and 15-minute long breaks. After four completed focus sessions it offers a long break. Start the suggested phase when ready; phases never auto-start. Pause/resume and refresh recovery use saved deadlines. Breaks are excluded from focus statistics. The timer settles when the app returns from sleep; it does not issue background notifications with the browser closed.
+Focus includes 25-minute task-linked Pomodoros, 5-minute short breaks, and 15-minute long breaks. Starting a focus round requires a task name and opens a work reflection at completion. After four completed focus sessions it offers a long break. Start the suggested phase when ready; phases never auto-start. Pause/resume and refresh recovery use saved deadlines. Breaks are excluded from focus statistics. The timer settles when the app returns from sleep; it does not issue background notifications with the browser closed.
+
+## Daily accounting and data preservation
+
+- Work time is elapsed tracked time minus pauses and self-reported distractions. Exact pause intervals are recorded for new sessions. Overlapping work/Pomodoro intervals count once.
+- Local midnight splits sessions into the dates where the time occurred. Aggregate manual corrections, distractions, and legacy pause totals are allocated proportionally, because exact distraction timestamps are unknown.
+- Completion is completed planned non-break tasks divided by planned non-break tasks. Partial, missed/skipped, and upcoming tasks are shown separately. Deliberately rescheduled blocks are excluded. Extra elapsed time never implies extra achievement.
+- Untracked time is the elapsed portion of scheduled work without a recorded interval. It is not called wasted time. A running timer is not evidence of keyboard activity or attention.
+- Daily totals roll over without deleting records. Carry-forward creates a linked to-do and leaves the original day intact. Replanning archives prior blocks in place; originals without a mapped replacement return to Later.
+- Streaks count days with completed planned work or recorded work. Completion history is recomputed from retained tasks, while legacy history without underlying records remains readable.
+- Old Pomodoros without interval timestamps retain original daily totals and their old overlap flag; precise retrospective splitting is impossible for those records.
+
+Established product references informed the distinction between recorded time and classified productivity, rather than copying a proprietary score: [Toggl Summary Report](https://docs.toggl.com/summary-report-in-toggl), [RescueTime activity categories](https://help.rescuetime.com/article/456-managing-your-activities-categories-and-productivity-levels). This app uses the explicit formulas above, not a claimed industry-standard productivity algorithm.
+
+AI can use multiple windows such as `10 AM - 1 PM, 4 PM - 6 PM`. Server and client validate bounds, gaps, and overlap. Preview edits never mutate saved tasks until Apply. Replanning protects completed/running work, and rejects a stale preview if those tasks changed. Review suggestions are currently your own recorded lessons and next-day adjustment; there is no hidden AI analysis of private journal entries.

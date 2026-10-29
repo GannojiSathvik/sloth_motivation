@@ -32,14 +32,11 @@
   </a>
   <div class="workspace-label">YOUR WORKSPACE</div>
   <nav class="sidebar-nav" aria-label="Main navigation">
-    <a class="nav-item active" data-page="dashboard" href="/"><svg class="icon"><use href="#i-grid"/></svg><span>Overview</span><span class="nav-active-dot"></span></a>
-    <a class="nav-item" data-page="work" href="/work"><svg class="icon"><use href="#i-clock"/></svg><span>Work & reflect</span></a>
-    <a class="nav-item" data-page="timetable" href="/timetable"><svg class="icon"><use href="#i-calendar"/></svg><span>Timetable</span></a>
-    <a class="nav-item" data-page="todos" href="/todos"><svg class="icon"><use href="#i-book"/></svg><span>To-do & reminders</span></a>
-    <a class="nav-item" data-page="journal" href="/journal"><svg class="icon"><use href="#i-book"/></svg><span>Journal</span></a>
-    <a class="nav-item" data-page="progress" href="/progress"><svg class="icon"><use href="#i-chart"/></svg><span>My progress</span></a>
-    <a class="nav-item" data-page="planner" href="/planner"><svg class="icon"><use href="#i-spark"/></svg><span>AI planner</span></a>
-    <a class="nav-item" data-page="quotes" href="/fuel"><svg class="icon"><use href="#i-spark"/></svg><span>Daily fuel</span></a>
+    <a class="nav-item active" data-page="dashboard" href="/"><svg class="icon"><use href="#i-grid"/></svg><span>Dashboard</span><span class="nav-active-dot"></span></a>
+    <a class="nav-item" data-page="todos" href="/todos"><svg class="icon"><use href="#i-book"/></svg><span>Tasks</span></a>
+    <a class="nav-item" data-page="work" href="/work"><svg class="icon"><use href="#i-clock"/></svg><span>Focus</span></a>
+    <a class="nav-item" data-page="planner" href="/planner"><svg class="icon"><use href="#i-spark"/></svg><span>Planner</span></a>
+    <a class="nav-item" data-page="progress" href="/progress"><svg class="icon"><use href="#i-chart"/></svg><span>Progress</span></a>
   </nav>
   <div class="sidebar-bottom">
     <div class="sidebar-note"><svg class="icon"><use href="#i-leaf"/></svg><p>A little better,<br>every single day.</p><span>You’re growing at your own pace.</span></div>
@@ -49,7 +46,7 @@
 </aside>
 <main class="main-content">
   <header class="topbar">
-    <div class="breadcrumb">My workspace <span>/</span> <strong id="page-breadcrumb">Overview</strong></div>
+    <div class="breadcrumb">My workspace <span>/</span> <strong id="page-breadcrumb">Dashboard</strong></div>
     <div class="topbar-right"><div class="clock-display"><svg class="icon"><use href="#i-clock"/></svg><span id="live-time" class="live-time"></span></div><span class="topbar-divider"></span><a class="btn-ai" href="/account" data-page="account"><svg class="icon"><use href="#i-leaf"/></svg><span id="account-link-label">Local storage</span></a></div>
   </header>
   <div class="quote-ticker" hidden><div id="quote-ticker-text"></div></div>
@@ -57,19 +54,15 @@
     <section class="tab-panel active" id="tab-dashboard">
       <div class="dashboard-heading"><div><div class="eyebrow"><span class="little-sun">☼</span> A FRESH CHANCE TO MAKE IT COUNT</div><h1>Small steps. <span>Real progress.</span></h1><p>You don’t have to do it all. Just the next right thing.</p></div><a class="btn btn-primary" href="/planner" data-page="planner"><svg class="icon"><use href="#i-spark"/></svg> Plan with AI</a></div>
 
-      <div class="day-heading"><div class="section-label">Your day at a glance</div><span id="live-date" class="live-date"></span></div>
+      <div id="carry-forward" class="card" hidden></div><div class="day-heading"><div class="section-label">Your day at a glance</div><span id="live-date" class="live-date"></span></div>
       <div class="metrics-grid">
         <div class="metric-card"><div class="metric-top"><span>Tasks completed</span><svg class="icon metric-icon mint"><use href="#i-check"/></svg></div><div class="metric-value"><strong id="done-count">0</strong><span>/ <span id="task-total">0</span></span></div><div class="metric-foot"><span class="mint-text" id="completion-note">A clean slate</span><span>one step at a time</span></div><div class="metric-track"><span id="completion-fill"></span></div></div>
-        <div class="metric-card"><div class="metric-top"><span>Focus time</span><svg class="icon metric-icon lavender"><use href="#i-clock"/></svg></div><div class="metric-value"><strong id="daily-focus">0</strong><span id="daily-focus-unit">min</span></div><div class="metric-foot"><span class="lavender-text">Time well spent</span><span>on what matters</span></div><div class="mini-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+        <div class="metric-card"><div class="metric-top"><span>Recorded work</span><svg class="icon metric-icon lavender"><use href="#i-clock"/></svg></div><div class="metric-value"><strong id="daily-focus">0</strong><span id="daily-focus-unit">min</span></div><div class="metric-foot"><span class="lavender-text">Tracked, not assumed</span><span>on what matters</span></div><div class="mini-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
         <div class="metric-card"><div class="metric-top"><span>Current streak</span><svg class="icon metric-icon peach"><use href="#i-flame"/></svg></div><div class="metric-value"><strong id="dashboard-streak">0</strong><span>days</span></div><div class="metric-foot"><span class="peach-text" id="streak-note">Your next chapter</span></div><div class="streak-week" id="streak-week"></div></div>
-        <div class="metric-card"><div class="metric-top"><span>Daily completion</span><svg class="icon metric-icon blue"><use href="#i-chart"/></svg></div><div class="completion-summary"><div><div class="metric-value"><strong id="ring-pct">0%</strong></div><div class="metric-foot"><span id="pending-count">0</span> pending <span class="meta-dot">·</span><span id="procrastinated-count">0</span> skipped</div></div><svg class="progress-ring" viewBox="0 0 200 200" aria-label="Daily completion"><circle class="ring-bg" cx="100" cy="100" r="80"/><circle class="ring-fill" id="ring-fill" cx="100" cy="100" r="80" stroke-dasharray="502" stroke-dashoffset="502"/></svg></div></div>
+        <div class="metric-card"><div class="metric-top"><span>Daily completion</span><svg class="icon metric-icon blue"><use href="#i-chart"/></svg></div><div class="completion-summary"><div><div class="metric-value"><strong id="ring-pct">0%</strong></div><div class="metric-foot"><span id="pending-count">0</span> pending <span class="meta-dot">·</span><span id="procrastinated-count">0</span> missed/skipped</div></div><svg class="progress-ring" viewBox="0 0 200 200" aria-label="Daily completion"><circle class="ring-bg" cx="100" cy="100" r="80"/><circle class="ring-fill" id="ring-fill" cx="100" cy="100" r="80" stroke-dasharray="502" stroke-dashoffset="502"/></svg></div></div>
       </div>
-      <div class="dashboard-grid">
-        <div class="card card-current">
-          <div class="focus-copy"><div class="current-tag"><span class="pulse-dot"></span> MAKE SPACE FOR FOCUS</div><h2 id="current-task-title">One thing at a time.</h2><p id="current-task-desc">Give yourself 25 quiet minutes. A small start can change the whole day.</p><div class="current-block-pill" id="current-block-pill"><svg class="icon"><use href="#i-clock"/></svg><span id="current-block-label">Your next small step starts here</span></div><div class="current-links" id="current-links"></div><div class="pomodoro-modes" aria-label="Pomodoro mode"><button id="pomodoro-focus" onclick="selectFocusMode('focus')" aria-pressed="true">Focus · 25m</button><button id="pomodoro-short" onclick="selectFocusMode('short')" aria-pressed="false">Break · 5m</button><button id="pomodoro-long" onclick="selectFocusMode('long')" aria-pressed="false">Long break · 15m</button></div><p id="pomodoro-rounds" class="pomodoro-rounds"></p><div class="focus-buttons"><button class="btn btn-focus" id="focus-toggle" onclick="toggleFocus()"><span id="focus-play-icon">▶</span><span id="focus-button-label">Start focus session</span></button><button class="icon-button" onclick="resetFocus()" aria-label="Reset focus timer" title="Reset timer">↺</button></div><div class="current-actions" id="current-actions" hidden><button class="text-button" onclick="markCurrentDone()">✓ Mark done</button><button class="text-button" onclick="markCurrentSkipped()">Skip this block</button></div></div>
-          <div class="focus-dial"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="orbit-star star-one">✦</div><div class="orbit-star star-two">✧</div><div class="timer-ring"><svg viewBox="0 0 240 240" aria-hidden="true"><circle class="timer-track" cx="120" cy="120" r="106"/><circle id="focus-ring" class="timer-progress" cx="120" cy="120" r="106"/></svg><div class="timer-center"><svg class="icon"><use href="#i-leaf"/></svg><span id="focus-time" role="timer" aria-label="Focus time remaining">25:00</span><span id="focus-state">A MOMENT FOR YOU</span></div></div><span class="focus-dial-note">Less noise. More intention.</span></div>
-          <div class="focus-bottom"><svg class="icon"><use href="#i-spark"/></svg><span id="focus-tip">The hardest part is starting. You’re already here.</span><span id="pomodoro-mode-label">25 MIN FOCUS</span></div>
-        </div>
+      <div id="daily-accounting" class="card daily-accounting"></div><div class="dashboard-grid">
+        <div class="card dashboard-start"><div class="eyebrow">YOUR NEXT SMALL STEP</div><h2>Less guessing.<br/>More doing.</h2><p>Pick a task, start tracking, and see what you actually achieve.</p><a href="/work" data-page="work" class="btn btn-primary">Start working ↗</a><p><a href="/todos" data-page="todos" class="text-button">Find something from my list</a></p></div>
         <div class="card card-upcoming"><div class="card-heading"><h2 class="card-title">The day ahead</h2><a class="text-button" data-page="timetable" href="/timetable">View all <span>↗</span></a></div><p class="card-description">A little structure goes a long way.</p><div id="upcoming-list" class="upcoming-list"></div><button class="add-block-button" onclick="openAddTask()"><svg class="icon"><use href="#i-plus"/></svg> Add a time block</button></div>
         <div class="card card-heatmap"><div class="card-heading"><h2 class="card-title">Showing up adds up.</h2><span class="small-pill">Last 30 days</span></div><p class="card-description">Every little square is a step forward.</p><div class="heatmap-grid" id="heatmap-grid"></div><div class="heatmap-footer"><span><strong id="active-days">0</strong> active days <span class="meta-dot">·</span> Keep the momentum going</span><div class="heatmap-legend"><span>Less</span><span class="hm-dot hm-0"></span><span class="hm-dot hm-1"></span><span class="hm-dot hm-2"></span><span class="hm-dot hm-3"></span><span class="hm-dot hm-4"></span><span>More</span></div></div></div>
         <div class="card card-quote-main" id="daily-quote-card"><div class="card-heading"><span class="eyebrow">A LITTLE DAILY FUEL</span><span class="quote-mark">“</span></div><blockquote class="main-quote" id="main-quote-text">Loading inspiration…</blockquote><div class="quote-footer"><cite class="main-quote-author" id="main-quote-author"></cite><button class="btn-next-quote" onclick="nextQuote()" aria-label="Next quote" title="Next quote">↗</button></div></div>
@@ -78,10 +71,15 @@
       <footer class="dashboard-footer"><span><svg class="icon"><use href="#i-leaf"/></svg> Built for progress, at your pace.</span><button class="text-button" onclick="openJournalEntry()">Take a moment to reflect <span>↗</span></button></footer>
     </section>
 
-    <section class="tab-panel" id="tab-work"><div class="dashboard-heading"><div><div class="eyebrow">ONE THING AT A TIME</div><h1>Start small. <span>Learn as you go.</span></h1><p>Name your task, start the timer, and reflect when you finish.</p></div></div>      <div class="work-layout">
+    <section class="tab-panel" id="tab-work"><div class="dashboard-heading"><div><div class="eyebrow">ONE THING AT A TIME</div><h1>Start small. <span>Learn as you go.</span></h1><p>Name your task, start the timer, and reflect when you finish.</p></div></div><div class="section-tabs"><button data-work-mode="stopwatch" aria-pressed="true" onclick="chooseWorkMode('stopwatch')">Stopwatch</button><button data-work-mode="pomodoro" aria-pressed="false" onclick="chooseWorkMode('pomodoro')">Pomodoro</button></div><div id="pomodoro-panel" hidden>        <div class="card card-current">
+          <div class="focus-copy"><label for="pomodoro-task-name">What are you focusing on?</label><input id="pomodoro-task-name" class="input" maxlength="200" placeholder="Name one task"/><div class="current-tag"><span class="pulse-dot"></span> MAKE SPACE FOR FOCUS</div><h2 id="current-task-title">One thing at a time.</h2><p id="current-task-desc">Give yourself 25 quiet minutes. A small start can change the whole day.</p><div class="current-block-pill" id="current-block-pill"><svg class="icon"><use href="#i-clock"/></svg><span id="current-block-label">Your next small step starts here</span></div><div class="current-links" id="current-links"></div><div class="pomodoro-modes" aria-label="Pomodoro mode"><button id="pomodoro-focus" onclick="selectFocusMode('focus')" aria-pressed="true">Focus · 25m</button><button id="pomodoro-short" onclick="selectFocusMode('short')" aria-pressed="false">Break · 5m</button><button id="pomodoro-long" onclick="selectFocusMode('long')" aria-pressed="false">Long break · 15m</button></div><p id="pomodoro-rounds" class="pomodoro-rounds"></p><div class="focus-buttons"><button class="btn btn-focus" id="focus-toggle" onclick="toggleTaskPomodoro()"><span id="focus-play-icon">▶</span><span id="focus-button-label">Start focus session</span></button><button class="icon-button" onclick="resetFocus()" aria-label="Reset focus timer" title="Reset timer">↺</button></div><div class="current-actions" id="current-actions" hidden><button class="text-button" onclick="markCurrentDone()">✓ Mark done</button><button class="text-button" onclick="markCurrentSkipped()">Skip this block</button></div></div>
+          <div class="focus-dial"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="orbit-star star-one">✦</div><div class="orbit-star star-two">✧</div><div class="timer-ring"><svg viewBox="0 0 240 240" aria-hidden="true"><circle class="timer-track" cx="120" cy="120" r="106"/><circle id="focus-ring" class="timer-progress" cx="120" cy="120" r="106"/></svg><div class="timer-center"><svg class="icon"><use href="#i-leaf"/></svg><span id="focus-time" role="timer" aria-label="Focus time remaining">25:00</span><span id="focus-state">A MOMENT FOR YOU</span></div></div><span class="focus-dial-note">Less noise. More intention.</span></div>
+          <div class="focus-bottom"><svg class="icon"><use href="#i-spark"/></svg><span id="focus-tip">The hardest part is starting. You’re already here.</span><span id="pomodoro-mode-label">25 MIN FOCUS</span></div>
+        </div>
+</div><div id="stopwatch-panel"><div class="work-layout">
         <div class="card work-card">
           <div class="current-tag"><span class="pulse-dot"></span><span id="work-status">READY WHEN YOU ARE</span></div>
-          <div id="work-picker"><label for="work-task">Choose something from your day</label><select class="input" id="work-task" onchange="selectWorkTask()"></select><div id="work-custom"><label for="work-name">What task are you doing?</label><input class="input" id="work-name" maxlength="200" placeholder="e.g. Practice two DSA problems"/><label for="work-planned">How many minutes are you aiming for?</label><input class="input" type="number" id="work-planned" min="1" max="1440" value="25"/></div></div>
+          <div id="work-picker"><label for="work-task">Choose something from your day</label><select class="input" id="work-task" onchange="selectWorkTask()"></select><div id="work-custom"><label for="work-name">What task are you doing?</label><input class="input" id="work-name" maxlength="200" placeholder="e.g. Practice two DSA problems"/><label for="work-planned">Time target (optional)</label><input class="input" type="number" id="work-planned" min="1" max="1440" placeholder="No time limit"/></div><details><summary>Expected outcome (optional)</summary><label for="work-expected">What would you like to achieve? (optional)</label><input id="work-expected" class="input" maxlength="500" placeholder="e.g. Solve three array problems"/></details></div>
           <div id="work-running-title" hidden><h2 id="work-title"></h2><p id="work-started"></p></div>
           <div id="work-details" class="work-details" hidden></div><details class="work-details" id="work-lessons"><summary>Lessons for next time</summary><div id="work-lessons-list"></div></details>
           <div class="work-time" id="work-elapsed" role="timer" aria-label="Tracked task time">00:00:00</div>
@@ -92,10 +90,10 @@
         <div class="card today-list-card"><div class="card-heading"><h2 class="card-title">Your tasks today</h2><button class="text-button" onclick="openAddTask()">+ Add task</button></div><div id="today-work-list"></div><a class="text-button" href="/timetable" data-page="timetable">See your full timetable ↗</a></div>
       </div>
       <div id="today-reminders" class="reminder-nudge"></div><div class="recent-work-strip" id="recent-work-strip"></div>
-    </section>
-    <section class="tab-panel" id="tab-planner">
+    </div></section>
+    <section class="tab-panel" id="tab-planner"><nav class="section-tabs" aria-label="planner sections"><a class="selected" href="/planner" data-page="planner">AI plan</a><a class="" href="/timetable" data-page="timetable">Timetable</a></nav>
       <div class="dashboard-heading"><div><div class="eyebrow">GEMINI · YOUR PLANNING PARTNER</div><h1>Less planning. <span>More doing.</span></h1><p>Tell us what matters today. We’ll find a little room for it.</p></div><span class="small-pill" id="planner-connection">Checking connection…</span></div>
-      <div class="planner-layout">
+      <div id="planner-carry" class="card" hidden></div><div class="planner-layout">
         <form class="card planner-form" id="planner-form" onsubmit="event.preventDefault(); generateDailyPlan()">
           <fieldset id="planner-fields">
             <label for="planner-brief">What would make this a good day?</label><textarea id="planner-brief" class="input textarea" rows="5" maxlength="3000" required placeholder="I want to study DSA for 2 hours, work on my project, and get a workout in. Lunch at 1. Keep my evening light."></textarea>
@@ -103,14 +101,15 @@
             <div class="account-buttons"><button type="button" class="text-button" onclick="setPlannerDay('remaining')">Remaining today</button><button type="button" class="text-button" onclick="setPlannerDay('tomorrow')">Tomorrow</button></div><label for="planner-date">Which day?</label><input class="input" type="date" id="planner-date" required onchange="updatePlannerContext()"/>
             <div class="form-row"><div><label for="planner-start">Available from</label><input class="input" type="time" id="planner-start" value="09:00" required/></div><div><label for="planner-end">Until</label><input class="input" type="time" id="planner-end" value="18:00" required/></div></div>
             <div class="form-row"><div><label for="planner-energy">Your energy</label><select class="input" id="planner-energy"><option value="gentle">Gentle — keep it light</option><option value="balanced" selected>Balanced — steady pace</option><option value="ambitious">Ambitious — ready to focus</option></select></div><div><label for="planner-focus">Focus blocks</label><select class="input" id="planner-focus"><option value="25">25 minutes</option><option value="50" selected>50 minutes</option><option value="90">90 minutes</option></select></div></div>
-            <label class="planner-check"><input type="checkbox" id="planner-use-goals" checked/> Consider my saved goals</label>
-            <p class="planner-context" id="planner-context"></p>
+            <label for="planner-windows">Available windows (optional)</label><input class="input" id="planner-windows" placeholder="10 AM - 1 PM, 4 PM - 6 PM"/><p class="card-description">Use separate windows to keep meals, classes, and other commitments free. These override the single start/end window above.</p><label class="planner-check"><input type="checkbox" id="planner-use-goals" checked/> Consider my saved goals</label>
+            <p class="planner-context" id="planner-context"></p><button class="btn btn-ghost" type="button" onclick="replanRemainingDay()">Replan remaining day</button>
           </fieldset>
           <div class="planner-error" id="planner-error" role="alert" hidden></div>
           <button class="btn btn-primary" id="planner-generate" type="submit"><svg class="icon"><use href="#i-spark"/></svg><span>Make my plan</span></button><button class="text-button" type="button" id="planner-cancel" onclick="cancelDailyPlan()" hidden>Cancel generation</button>
           <p class="planner-privacy">Your brief, optional context, selected goals, and this day’s time blocks are sent to Gemini. Your journal entries stay private.</p>
         </form>
-        <div class="card planner-preview" id="planner-preview" aria-live="polite"><div class="planner-placeholder"><svg class="icon"><use href="#i-spark"/></svg><h2>A day that works for you.</h2><p>Your plan will appear here. Edit anything, then add it to your timetable in one step.</p><div class="planner-steps"><span>01 &nbsp; Tell us your priorities</span><span>02 &nbsp; Review your plan</span><span>03 &nbsp; Start your first task</span></div></div></div>
+        <div><div id="planner-refine" class="card" hidden><label for="planner-revision">What would you change?</label><input id="planner-revision" class="input" maxlength="500" placeholder="Move arrays to the evening"/><button type="button" class="btn btn-ghost" onclick="reviseDailyPlan()">Revise preview</button></div><div class="card planner-preview" id="planner-preview" aria-live="polite"><div class="planner-placeholder"><svg class="icon"><use href="#i-spark"/></svg><h2>A day that works for you.</h2><p>Your plan will appear here. Edit anything, then add it to your timetable in one step.</p><div class="planner-steps"><span>01 &nbsp; Tell us your priorities</span><span>02 &nbsp; Review your plan</span><span>03 &nbsp; Start your first task</span></div></div></div>
+      </div>
       </div>
     </section>
     <section class="tab-panel" id="tab-todos">
@@ -119,7 +118,7 @@
         <h2 id="todo-form-title">Save a thought</h2><label for="todo-name">What do you want to do?</label><input class="input" id="todo-name" required maxlength="200" placeholder="Practice arrays, read a chapter…"/>
         <label for="todo-notes">Notes (optional)</label><textarea class="input" id="todo-notes" rows="3" maxlength="2000" placeholder="Where to start or what to prepare"></textarea>
         <label for="todo-date">Remind me on (optional)</label><input class="input" id="todo-date" type="date"/>
-        <label for="todo-minutes">Planned minutes</label><input class="input" id="todo-minutes" type="number" min="1" max="1440" value="25" required/>
+        <label for="todo-minutes">Time target (optional)</label><input class="input" id="todo-minutes" type="number" min="1" max="1440" placeholder="No time limit"/>
         <div class="account-buttons"><button class="btn btn-primary" type="submit">Save task</button><button class="btn btn-ghost" id="todo-cancel" type="button" hidden onclick="resetTodoForm()">Cancel edit</button></div>
         <p class="todo-help">Reminders appear in the app when due. No notifications are sent while the app is closed.</p></form>
         <div><div class="card todo-suggestion"><h2>Not sure what to do?</h2><p id="todo-suggestion-text">Pick something you’ve been meaning to do.</p><button class="btn btn-ghost" onclick="suggestTodo()">Pick a task for me ↗</button></div>
@@ -128,7 +127,7 @@
     <section class="tab-panel" id="tab-account"><div class="dashboard-heading"><div><div class="eyebrow">YOUR BROWSER · YOUR WORKSPACE</div><h1>Keep it <span>simple.</span></h1><p>No account needed. Supabase syncing is paused.</p></div></div><div class="card account-card"><h2>Saved on this browser</h2><p class="card-description">Your tasks, reminders, work logs, and reflections save automatically on this device. They won’t sync across devices or between localhost and your Vercel site. Clearing browser data can remove them.</p><button class="btn btn-primary" onclick="exportLocalWorkspace()">Download a backup</button><hr/><label for="local-workspace">Previously saved on this browser</label><select id="local-workspace" class="input"></select><button class="btn btn-ghost" onclick="useLocalWorkspace()">Open saved workspace</button><p class="card-description">Existing cloud records are untouched. Cached account workspaces can still be opened locally. Only an AI planning request sends your chosen planning details to Gemini.</p></div></section>
 
     <!-- TIMETABLE -->
-    <section class="tab-panel" id="tab-timetable">
+    <section class="tab-panel" id="tab-timetable"><nav class="section-tabs" aria-label="timetable sections"><a class="" href="/planner" data-page="planner">AI plan</a><a class="selected" href="/timetable" data-page="timetable">Timetable</a></nav>
       <div class="timetable-header">
         <h1 class="page-title">Your daily rhythm</h1>
         <div class="timetable-controls">
@@ -136,14 +135,14 @@
           <input type="date" class="date-picker" id="timetable-date" aria-label="Timetable date" onchange="renderTimetable()" />
         </div>
       </div>
-      <div class="timetable-wrap">
+<div class="schedule-date-nav"><button class="btn btn-ghost" onclick="shiftScheduleDay(-7)" aria-label="Previous week">← Previous week</button><button class="text-button" onclick="chooseScheduleDay(todayStr())">Today</button><button class="btn btn-ghost" onclick="shiftScheduleDay(7)" aria-label="Next week">Next week →</button></div><div class="timetable-wrap">
         <div class="time-axis" id="time-axis"></div>
         <div class="blocks-wrap" id="blocks-wrap"></div>
       </div>
     </section>
 
     <!-- JOURNAL -->
-    <section class="tab-panel" id="tab-journal">
+    <section class="tab-panel" id="tab-journal"><nav class="section-tabs" aria-label="journal sections"><a class="" href="/progress" data-page="progress">Daily review & trends</a><a class="selected" href="/journal" data-page="journal">Reflections</a></nav>
       <div class="journal-header">
         <h1 class="page-title">A space to reflect</h1>
         <div class="journal-controls">
@@ -158,9 +157,9 @@
     </section>
 
     <!-- PROGRESS -->
-    <section class="tab-panel" id="tab-progress">
+    <section class="tab-panel" id="tab-progress"><nav class="section-tabs" aria-label="progress sections"><a class="selected" href="/progress" data-page="progress">Daily review & trends</a><a class="" href="/journal" data-page="journal">Reflections</a><a class="" href="/fuel" data-page="quotes">Daily fuel</a></nav>
       <h1 class="page-title">Look how far you’ve come</h1>
-      <div class="progress-grid">
+<div class="card daily-review"><div class="card-heading"><h2>Review my day</h2><input class="input" type="date" id="review-date" aria-label="Review date" onchange="renderDailyReview()"/></div><div id="daily-review-content"></div><label for="review-improvement">One adjustment for tomorrow</label><textarea id="review-improvement" class="input" maxlength="2000" rows="2" placeholder="e.g. Start with one problem before checking messages"></textarea><button class="btn btn-primary" onclick="saveDailyReview()">Save improvement</button></div><div class="progress-grid">
         <div class="card">
           <h2 class="card-title">Your goals</h2>
           <div id="goals-list"></div>
@@ -172,15 +171,15 @@
         </div>
         <div class="card card-compete">
           <h2 class="card-title">Your daily balance</h2>
-          <p class="compete-sub">Completed time today, across the things that matter.</p>
+          <p class="compete-sub">Planned time alongside recorded work, breaks, and distractions.</p>
           <div class="compare-bars" id="compare-bars"></div>
         </div>
         <div class="card">
-          <h2 class="card-title">Time invested</h2>
+          <h2 class="card-title">Recorded today</h2>
           <div class="time-invested-wrap">
             <div class="time-stat"><span class="time-big" id="total-hours">0h</span><small>Total logged</small></div>
-            <div class="time-stat"><span class="time-big" id="focus-hours">0h</span><small>Deep focus</small></div>
-            <div class="time-stat"><span class="time-big" id="wasted-hours">0h</span><small>Skipped</small></div>
+            <div class="time-stat"><span class="time-big" id="focus-hours">0h</span><small>Breaks</small></div>
+            <div class="time-stat"><span class="time-big" id="wasted-hours">0h</span><small>Reported distractions</small></div>
           </div>
         </div>
       </div>
@@ -242,7 +241,7 @@
   </div>
 </main>
 
-<div class="modal-overlay" id="modal-work-log" onclick="closeModal('modal-work-log')"><div class="modal" onclick="event.stopPropagation()"><div class="modal-header"><h2>How did it go?</h2><button class="modal-close" onclick="closeModal('modal-work-log')">✕</button></div><form onsubmit="event.preventDefault(); saveWorkLog()"><div class="modal-body"><div id="work-log-summary" class="work-log-summary"></div><label for="work-did">What did you do?</label><textarea id="work-did" class="input textarea" rows="3" maxlength="3000" required placeholder="e.g. Solved two array problems and reviewed my mistakes"></textarea><label for="work-where">Where did you work?</label><input id="work-where" class="input" maxlength="300" required placeholder="e.g. LeetCode, VS Code, library, or a project link"/><label for="work-worth">Was this time worthwhile?</label><select id="work-worth" class="input"><option value="yes">Yes — useful progress</option><option value="partly">Partly — some useful progress</option><option value="no">Not this time</option></select><label for="work-mistakes">What mistakes or obstacles did you notice? (optional)</label><textarea id="work-mistakes" class="input textarea" rows="2" maxlength="2000" placeholder="No mistakes is a valid answer too"></textarea><label for="work-lesson">What will you do differently next time? (optional)</label><textarea id="work-lesson" class="input textarea" rows="2" maxlength="2000" placeholder="One practical lesson to remember"></textarea><label for="work-outcome">How did the task end?</label><select class="input" id="work-outcome"><option value="done">Completed</option><option value="pending">Made progress — still more to do</option></select></div><div class="modal-footer"><button type="button" class="btn btn-ghost" onclick="closeModal('modal-work-log')">Save later</button><button class="btn btn-primary" type="submit">Save work log</button></div></form></div></div>
+<div class="modal-overlay" id="modal-work-log" onclick="closeModal('modal-work-log')"><div class="modal" onclick="event.stopPropagation()"><div class="modal-header"><h2>How did it go?</h2><button class="modal-close" onclick="closeModal('modal-work-log')">✕</button></div><form onsubmit="event.preventDefault(); saveWorkLog()"><div class="modal-body"><div id="work-log-summary" class="work-log-summary"></div><p id="reflection-expected"></p><details class="correction-panel"><summary>Correct a forgotten timer or report distractions</summary><label for="correct-start">Started</label><input class="input" type="datetime-local" step="1" id="correct-start"/><label for="correct-end">Ended</label><input class="input" type="datetime-local" step="1" id="correct-end"/><div class="form-row"><div><label for="correct-break">Break minutes</label><input class="input" type="number" min="0" step="any" id="correct-break"/></div><div><label for="correct-distraction">Distracted minutes</label><input class="input" type="number" min="0" step="any" id="correct-distraction" value="0"/></div></div><p>These minutes are deducted from work. If you change the times, deductions are spread proportionally across the session.</p></details><p id="correction-error" role="alert"></p><label for="work-did">What did you do?</label><textarea id="work-did" class="input textarea" rows="3" maxlength="3000" required placeholder="e.g. Solved two array problems and reviewed my mistakes"></textarea><label for="work-where">Where did you work?</label><input id="work-where" class="input" maxlength="300" required placeholder="e.g. LeetCode, VS Code, library, or a project link"/><label for="work-worth">Was this time worthwhile?</label><select id="work-worth" class="input"><option value="yes">Yes — useful progress</option><option value="partly">Partly — some useful progress</option><option value="no">Not this time</option></select><label for="work-mistakes">What mistakes or obstacles did you notice? (optional)</label><textarea id="work-mistakes" class="input textarea" rows="2" maxlength="2000" placeholder="No mistakes is a valid answer too"></textarea><label for="work-lesson">What will you do differently next time? (optional)</label><textarea id="work-lesson" class="input textarea" rows="2" maxlength="2000" placeholder="One practical lesson to remember"></textarea><label for="work-outcome">How did the task end?</label><select class="input" id="work-outcome"><option value="done">Completed</option><option value="partial">Partly completed</option><option value="pending">Not achieved yet</option></select></div><div class="modal-footer"><button type="button" class="btn btn-ghost" onclick="closeModal('modal-work-log')">Save later</button><button class="btn btn-primary" type="submit">Save work log</button></div></form></div></div>
 
 <!-- MODALS -->
 <div class="modal-overlay" id="modal-add-task" onclick="closeModal('modal-add-task')">
@@ -254,7 +253,7 @@
     <div class="modal-body">
       <label>Task Name</label>
       <input type="text" id="task-name" class="input" placeholder="e.g. Deep work — DSA practice" />
-      <label>Description</label>
+      <label for="task-expected">Expected outcome (optional)</label><input class="input" id="task-expected" maxlength="500" placeholder="What does finished look like?"/><label>Description</label>
       <textarea id="task-desc" class="input textarea" rows="2" placeholder="What exactly will you do?"></textarea>
       <div class="form-row">
         <div><label for="task-start">Start Time</label><input type="time" id="task-start" class="input" /></div>
@@ -360,6 +359,7 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+<script src="/metrics.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

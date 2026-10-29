@@ -28,6 +28,7 @@ function app() {
     window: browserWindow, localStorage: { setItem: (k,v) => storage.set(k,v), getItem: k => storage.get(k) ?? null },
     setTimeout: () => 1, clearTimeout() {}, setInterval() {}, alert() {}
   });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../metrics.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8'), context);
   return { run: code => vm.runInContext(code, context), element, storage, routeHistory };
 }
@@ -118,7 +119,7 @@ test('navigation updates URL and page title without duplicate history entries', 
   assert.equal(a.element('page-breadcrumb').textContent, 'Journal');
   a.run("navigateToPage('progress')");
   assert.deepEqual(a.routeHistory, ['/journal', '/progress']);
-  assert.equal(a.run('document.title'), 'My progress — SlothMotivate');
+  assert.equal(a.run('document.title'), 'Progress — SlothMotivate');
 });
 
 test('work tracking measures elapsed time and excludes pauses', () => {
@@ -149,7 +150,7 @@ test('saving a reflection records work and marks its task once', () => {
   a.element('work-did').value='Solved one problem';
   a.element('work-where').value='LeetCode';
   a.element('work-outcome').value='done';
-  a.run('saveWorkLog(); saveWorkLog()');
+  a.run('prepareCorrections(state.workSession); saveWorkLog(); saveWorkLog()');
   assert.equal(a.run('state.workLogs.length'),1);
   assert.equal(a.run('state.tasks[0].status'),'done');
   assert.equal(a.run('state.workSession'),null);
@@ -167,7 +168,7 @@ test('saved task starts timing, saves lessons, and completes only after reflecti
   const a=app(); a.run("state.todos=[{id:1,name:'Arrays',notes:'Practice',minutes:25,date:'',done:false,archived:false}]; startTodo(1)");
   assert.equal(a.run('state.workSession.todoId'),1); assert.ok(a.run('state.workSession.startedAt > 0'));
   a.run("changeTodo(1,'archive')"); assert.equal(a.run('state.todos[0].archived'),false);
-  a.run('finishWork()'); assert.equal(a.run('state.todos[0].done'),false);
+  a.run('state.workSession.startedAt-=60000; finishWork()'); assert.equal(a.run('state.todos[0].done'),false);
   a.element('work-did').value='Solved a problem'; a.element('work-where').value='Desk'; a.element('work-outcome').value='done';
   a.element('work-worth').value='partly'; a.element('work-mistakes').value='Missed an edge case'; a.element('work-lesson').value='Test empty inputs';
   a.run('saveWorkLog(); load(); renderWorkLessons()');
@@ -193,14 +194,15 @@ test('overview summarizes reminders and reflections and work has its own route',
   assert.match(a.element('overview-features').innerHTML,/1 reminders due/);
   assert.match(a.element('overview-features').innerHTML,/Check base cases/);
   assert.equal(a.run("pageFromPath('/work')"),'work');
-  assert.equal(a.run('PAGES.dashboard.title'),'Overview');
+  assert.equal(a.run('PAGES.dashboard.title'),'Dashboard');
 });
 
 test('Pomodoro offers breaks, excludes break minutes and returns to focus', () => {
   const a=app(); a.run('state.focus.endAt=Date.now()-100; renderFocus(); toggleFocus()');
   assert.equal(a.run('focusMode()'),'short'); assert.equal(a.run('state.focus.rounds'),1);
   a.run('state.focus.endAt=Date.now()-100; renderFocus(); load(); renderFocus()');
-  assert.equal(a.run('state.focusSessions.length'),1);
+  assert.equal(a.run("state.focusSessions.filter(s=>s.mode==='focus').length"),1);
+  assert.equal(a.run("state.focusSessions.filter(s=>s.mode==='short').length"),1);
   a.run('toggleFocus()'); assert.equal(a.run('focusMode()'),'focus');
 });
 test('fourth completed focus offers long break and mode changes cannot discard running time', () => {
@@ -224,4 +226,38 @@ test('planner never silently truncates a full-day request to the remaining after
   assert.equal(a.run('requests'),0);
   assert.match(a.element('planner-error').textContent,/already passed|earlier than/);
   assert.equal(a.element('planner-start').value,'09:00');
+});
+
+test('custom work starts with only a name, without inventing a time target',()=>{
+ const a=app();a.element('work-name').value='Read chapter';a.run('startWork()');assert.equal(a.run('state.workSession.plannedMinutes'),0);assert.equal(a.run('state.workSession.taskName'),'Read chapter');
+});
+test('carry forward preserves the old result and does not duplicate on repeated clicks',()=>{
+ const a=app();a.run("state.tasks=[{id:1,name:'Read',date:'2025-01-01',start:'09:00',end:'10:00',status:'partial',category:'focus'}];carryTask(1,'today');carryTask(1,'today')");
+ assert.equal(a.run('state.todos.length'),1);assert.equal(a.run('state.tasks[0].status'),'partial');assert.equal(a.run('state.tasks[0].date'),'2025-01-01');assert.equal(a.run('state.todos[0].date'),a.run('todayStr()'));
+});
+test('corrections reject impossible deductions and retain original timing',()=>{
+ const a=app();a.run('state.workSession={startedAt:Date.now()-3600000,endedAt:Date.now(),pausedMs:0,pauseIntervals:[]};prepareCorrections(state.workSession)');
+ a.element('correct-break').value='70';assert.equal(a.run('applyCorrections(state.workSession)'),false);
+ a.element('correct-break').value='10';a.element('correct-distraction').value='5';assert.equal(a.run('applyCorrections(state.workSession)'),true);assert.equal(a.run('state.workSession.pausedMs'),600000);assert.ok(a.run('state.workSession.originalTiming'));
+});
+test('availability supports 12-hour windows, rejects overlaps, and formats midnight correctly',()=>{
+ const a=app();assert.equal(a.run("parseAvailability('10 AM - 1 PM, 4 PM - 6 PM')[1].start"),'16:00');assert.throws(()=>a.run("parseAvailability('10 AM - 1 PM, 12 PM - 2 PM')"));assert.equal(a.run("formatTime('00:05')"),'12:05 AM');assert.equal(a.run("formatTime('12:00')"),'12:00 PM');
+});
+test('applying a replan retains prior blocks and protects newly completed work',()=>{
+ const a=app();a.run("state.tasks=[{id:1,name:'Old',date:todayStr(),start:'09:00',end:'10:00',status:'pending',category:'focus'}];plannerDraft={date:todayStr(),start:'11:00',end:'13:00',blocks:[{name:'New',desc:'Done when: one problem solved',start:'11:00',end:'12:00',category:'focus'}],replaceIds:[1]};acceptDailyPlan()");
+ assert.equal(a.run('state.tasks.length'),2);assert.equal(a.run('state.tasks[0].status'),'rescheduled');assert.equal(a.run('state.tasks[1].expected'),'one problem solved');
+ a.run("state.tasks[1].status='done';plannerDraft={date:todayStr(),start:'13:00',end:'14:00',blocks:[{name:'Again',start:'13:00',end:'14:00'}],replaceIds:[state.tasks[1].id]};acceptDailyPlan()");assert.equal(a.run('state.tasks.length'),2);assert.match(a.element('planner-error').textContent,/changed or started/);
+});
+test('day rollover preserves logs and tasks while date selectors move to today',()=>{
+ const a=app();a.run("workflowDate='2025-01-01';state.tasks=[{id:1,name:'Old',date:'2025-01-01',start:'09:00',end:'10:00',status:'pending'}]");a.element('timetable-date').value='2025-01-01';a.run('renderDailySummary()');assert.equal(a.element('timetable-date').value,a.run('todayStr()'));assert.equal(a.run('state.tasks.length'),1);
+});
+
+test('task Pomodoro starts a named work session and pauses both clocks together',()=>{
+ const a=app();a.element('pomodoro-task-name').value='Arrays';a.run('toggleTaskPomodoro()');assert.equal(a.run('state.workSession.pomodoro'),true);assert.ok(a.run('state.focus.endAt'));
+ a.run('toggleTaskPomodoro()');assert.ok(a.run('state.workSession.pausedAt'));assert.equal(a.run('state.focus.endAt'),null);
+ a.run('toggleTaskPomodoro()');assert.equal(a.run('state.workSession.pausedAt'),null);assert.ok(a.run('state.focus.endAt'));
+});
+test('task Pomodoro deadline stops work and opens reflection without double-counting',()=>{
+ const a=app();a.element('pomodoro-task-name').value='Arrays';a.run('toggleTaskPomodoro(); state.workSession.startedAt=Date.now()-1500000;state.focus.segmentStart=state.workSession.startedAt;state.focus.endAt=Date.now()-1;renderFocus()');
+ assert.ok(a.run('state.workSession.endedAt'));assert.equal(a.run('state.focus.endAt'),null);assert.ok(a.element('correct-end').value);assert.ok(a.run('TimeMetrics.daily(state,todayStr()).workMs<=1500000'));
 });
