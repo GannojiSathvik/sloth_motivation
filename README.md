@@ -141,3 +141,8 @@ Established product references informed the distinction between recorded time an
 AI can use multiple windows such as `10 AM - 1 PM, 4 PM - 6 PM`. Server and client validate bounds, gaps, and overlap. Preview edits never mutate saved tasks until Apply. Replanning protects completed/running work, and rejects a stale preview if those tasks changed. Review suggestions are currently your own recorded lessons and next-day adjustment; there is no hidden AI analysis of private journal entries.
 
 The sidebar includes direct Timetable and Daily Fuel links. Timetable offers day/week calendar grids with 12-hour labels, clickable empty slots, and side-by-side overlapping events.
+
+### Learning sessions and reminders
+Starting a saved reminder starts its stopwatch immediately. Finish & reflect records what you did, what you learned, focus level, a 1–5 session rating, mistakes, and your next improvement. Pomodoro opens the same reflection when its focus round completes.
+
+Tasks & reminders supports searchable notes, up to 20 HTTP(S) links, and up to 3 compressed reference images per item. Images remain in browser storage and backups; no upload service is used. Reminder storage failures preserve the draft and existing records. Dates surface reminders inside the app, not as background notifications.

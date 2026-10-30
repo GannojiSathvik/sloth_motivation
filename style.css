@@ -2979,3 +2979,5 @@ a.btn, a.btn-ai, a.local-profile { text-decoration: none; }
 @media(max-width:700px){.calendar-scroll{height:62vh}.schedule-date-nav h2{font-size:17px}.pomodoro-clean{padding:24px 16px}.clean-timer{width:240px}.pomodoro-clean .pomodoro-modes button{font-size:11px;padding:10px}.sidebar-nav{overflow-x:auto!important;justify-content:flex-start!important}.sidebar-nav .nav-item{flex:0 0 auto;min-width:68px}.planner-form .form-row{gap:12px}}
 
 #tab-work.is-pomodoro>.dashboard-heading{display:none}#tab-work.is-pomodoro>.section-tabs{margin-bottom:20px}
+
+.reminder-images{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.reminder-images>div,.reminder-images>a{max-width:160px}.reminder-images img{width:160px;height:120px;object-fit:contain;background:#101711;border-radius:10px;border:1px solid #394735}.reminder-links{display:grid;gap:10px;margin:12px 0}.reminder-links a{color:#b9dcb8;overflow-wrap:anywhere}#todo-error{color:#efb4a5}#todo-search{margin:12px 0}

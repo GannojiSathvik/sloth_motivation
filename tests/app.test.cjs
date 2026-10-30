@@ -170,10 +170,10 @@ test('saved task starts timing, saves lessons, and completes only after reflecti
   a.run("changeTodo(1,'archive')"); assert.equal(a.run('state.todos[0].archived'),false);
   a.run('state.workSession.startedAt-=60000; finishWork()'); assert.equal(a.run('state.todos[0].done'),false);
   a.element('work-did').value='Solved a problem'; a.element('work-where').value='Desk'; a.element('work-outcome').value='done';
-  a.element('work-worth').value='partly'; a.element('work-mistakes').value='Missed an edge case'; a.element('work-lesson').value='Test empty inputs';
+  a.element('work-learned').value='Sliding window'; a.element('work-focus').value='mixed'; a.element('work-rating').value='4'; a.element('work-worth').value='partly'; a.element('work-mistakes').value='Missed an edge case'; a.element('work-lesson').value='Test empty inputs';
   a.run('saveWorkLog(); load(); renderWorkLessons()');
   assert.equal(a.run('state.todos[0].done'),true); assert.equal(a.run('state.workLogs[0].worth'),'partly');
-  assert.match(a.element('work-lessons-list').innerHTML,/Test empty inputs/);
+  assert.match(a.element('work-lessons-list').innerHTML,/Test empty inputs/); assert.equal(a.run('state.workLogs[0].learned'),'Sliding window'); assert.equal(a.run('state.workLogs[0].rating'),4); assert.equal(a.run('state.workLogs[0].focus'),'mixed');
 });
 test('old work logs render without reflection fields and user lessons are escaped', () => {
   const a=app(); assert.equal(a.run("reflectionDetails({})"),'');
@@ -272,4 +272,15 @@ test('calendar puts overlapping events side by side and reuses lanes for adjacen
 });
 test('calendar slot prefills a half-hour block on the selected date',()=>{
  const a=app();a.run("openCalendarSlot('2026-11-02',15)");assert.equal(a.element('task-date').value,'2026-11-02');assert.equal(a.element('task-start').value,'15:00');assert.equal(a.element('task-end').value,'15:30');
+});
+
+test('reminders persist images and links, reject unsafe links, and can be searched',()=>{
+ const a=app();a.element('todo-name').value='DSA reference';a.element('todo-links').value='javascript:alert(1)';a.run('saveTodo()');assert.equal(a.run('state.todos.length'),0);
+ a.element('todo-links').value='https://example.com/arrays';a.run("reminderImages=['data:image/png;base64,aGVsbG8='];saveTodo();load()");assert.equal(a.run('state.todos[0].images.length'),1);assert.equal(a.run('state.todos[0].links[0]'),'https://example.com/arrays');
+ a.element('todo-search').value='arrays';a.run('renderTodos()');assert.match(a.element('todo-list').innerHTML,/DSA reference/);
+ a.element('todo-search').value='missing';a.run('renderTodos()');assert.doesNotMatch(a.element('todo-list').innerHTML,/DSA reference/);
+ a.run("state.workMode='pomodoro';startTodo(state.todos[0].id)");assert.equal(a.run('state.workMode'),'stopwatch');assert.equal(a.run('state.workSession.links.length'),1);
+});
+test('reminder storage failure keeps the previous saved items and the draft',()=>{
+ const a=app();a.element('todo-name').value='Draft';a.run("localStorage.setItem=()=>{throw new Error('quota')};saveTodo()");assert.equal(a.run('state.todos.length'),0);assert.equal(a.element('todo-name').value,'Draft');assert.match(a.element('todo-error').textContent,/storage is full/);
 });

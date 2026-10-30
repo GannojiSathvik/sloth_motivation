@@ -1413,14 +1413,14 @@ function saveWorkLog() {
   comparison.actualMs = Math.max(0,comparison.actualMs-(session.distractedMs||0));
   comparison.differenceMs = comparison.actualMs-comparison.plannedMs;
   comparison.label = session.plannedMinutes ? durationLabel(Math.abs(comparison.differenceMs))+' '+(comparison.differenceMs>=0?'over':'under')+' planned work time' : 'No time target';
-  state.workLogs.push({ ...session, ...comparison, id: session.id, did, where, outcome, worth: ['yes','partly','no'].includes(document.getElementById('work-worth').value) ? document.getElementById('work-worth').value : 'yes', mistakes: document.getElementById('work-mistakes').value.trim(), lesson: document.getElementById('work-lesson').value.trim(), date: localDate(new Date(session.startedAt)) });
+  state.workLogs.push({ ...session, ...comparison, id: session.id, did, where, outcome, learned:document.getElementById('work-learned').value.trim(), focus:['focused','mixed','distracted'].includes(document.getElementById('work-focus').value)?document.getElementById('work-focus').value:'', rating:[1,2,3,4,5].includes(Number(document.getElementById('work-rating').value))?Number(document.getElementById('work-rating').value):null, worth: ['yes','partly','no'].includes(document.getElementById('work-worth').value) ? document.getElementById('work-worth').value : 'yes', mistakes: document.getElementById('work-mistakes').value.trim(), lesson: document.getElementById('work-lesson').value.trim(), date: localDate(new Date(session.startedAt)) });
   const task = state.tasks.find(t => t.id === session.taskId);
   if (task) task.status = outcome;
   const todo = state.todos.find(item => item.id === session.todoId);
   if (todo) todo.done = outcome === 'done';
   state.workSession = null;
   save(); closeModal('modal-work-log');
-  clearForm(['work-did', 'work-where', 'work-name', 'work-expected', 'work-mistakes', 'work-lesson']);
+  clearForm(['work-did', 'work-where', 'work-name', 'work-expected', 'work-mistakes', 'work-lesson','work-learned','work-focus','work-rating']);
   document.getElementById('work-worth').value='yes';
   document.getElementById('work-outcome').value='done';
   updateDashboard(); renderWork(); renderJournal();
@@ -1664,26 +1664,33 @@ function init() {
 document.addEventListener('DOMContentLoaded', init);
 
 let editingTodoId = null;
+let reminderImages = [];
+let reminderImagesLoading = false;
+let reminderDraftVersion=0;
 function todoDue(t) { return !t.done && !t.archived && Boolean(t.date) && t.date <= todayStr(); }
 function sortedTodos() { return state.todos.filter(t=>!t.done&&!t.archived).slice().sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999') || a.id-b.id); }
 function resetTodoForm() {
-  editingTodoId=null; clearForm(['todo-name','todo-notes','todo-date']);
+  editingTodoId=null; reminderDraftVersion++; reminderImages=[]; renderReminderImages(); clearForm(['todo-name','todo-notes','todo-date','todo-links','todo-images']); setText('todo-error','');
   document.getElementById('todo-minutes').value='';
   document.getElementById('todo-cancel').hidden=true; setText('todo-form-title','Save a thought');
 }
 function saveTodo() {
+  if(reminderImagesLoading){setText('todo-error','Please wait for the images to finish.');return;}
   const name=document.getElementById('todo-name').value.trim(), date=document.getElementById('todo-date').value, minutes=Number(document.getElementById('todo-minutes').value);
   if (!name || !Number.isInteger(minutes) || minutes<0 || minutes>1440) { showToast('Name your task. A time target is optional.'); return; }
   if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)))) { showToast('Choose a valid date.'); return; }
-  const fields={name,date,minutes,notes:document.getElementById('todo-notes').value.trim()};
+  const links=document.getElementById('todo-links').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  if(links.length>20||links.some(x=>!reminderLink(x))){setText('todo-error','Use up to 20 valid http:// or https:// links.');return;}
+  const before=JSON.stringify(state.todos);
+  const fields={name,date,minutes,notes:document.getElementById('todo-notes').value.trim(),links,images:[...reminderImages]};
   const item=state.todos.find(t=>t.id===editingTodoId);
   if (item) Object.assign(item,fields);
   else state.todos.push({id:Math.max(Date.now(),...state.todos.map(t=>Number(t.id)||0))+1,...fields,done:false,archived:false});
-  save(); resetTodoForm(); renderTodos(); renderReminderNudge(); showToast('Saved for later.');
+  try{if(JSON.stringify(state.todos).length>2000000)throw new Error('capacity');save();}catch{state.todos=JSON.parse(before);setText('todo-error','Browser storage is full. Remove an image or download a backup from Local storage. Your previous reminders are unchanged.');return;} resetTodoForm(); renderTodos(); renderReminderNudge(); showToast('Saved for later.');
 }
 function editTodo(id) {
   const item=state.todos.find(t=>t.id===id); if (!item) return;
-  editingTodoId=id;
+  editingTodoId=id; reminderDraftVersion++; reminderImages=[...(item.images||[])]; renderReminderImages();document.getElementById('todo-links').value=(item.links||[]).join('\n');setText('todo-error','');
   for (const key of ['name','notes','date','minutes']) document.getElementById('todo-'+key).value=item[key]||'';
   setText('todo-form-title','Edit your task'); document.getElementById('todo-cancel').hidden=false;
   document.getElementById('todo-name').focus(); document.getElementById('todo-name').scrollIntoView?.({block:'center',behavior:'smooth'});
@@ -1700,8 +1707,8 @@ function startTodo(id) {
   if (state.workSession) { showToast('Finish your current session first.'); return; }
   const t=state.todos.find(t=>t.id===id&&!t.done&&!t.archived); if (!t) return;
   const now=Date.now(); if (state.focus.endAt) state.focus.overlapsWork=true;
-  state.workSession={id:now,taskId:null,todoId:id,taskName:t.name,desc:t.notes||'',links:[],plannedMinutes:t.minutes||0,startedAt:now,endedAt:null,pausedAt:null,pausedMs:0,pauseIntervals:[],expected:t.notes||''};
-  save(); navigateToPage('work');
+  state.workSession={id:now,taskId:null,todoId:id,taskName:t.name,desc:t.notes||'',links:t.links||[],plannedMinutes:t.minutes||0,startedAt:now,endedAt:null,pausedAt:null,pausedMs:0,pauseIntervals:[],expected:t.notes||''};
+  state.workMode='stopwatch'; save(); navigateToPage('work');
 }
 function suggestTodo() {
   const all=sortedTodos(), due=all.filter(todoDue), pool=due.length?due:all;
@@ -1711,9 +1718,11 @@ function suggestTodo() {
 }
 function renderTodos() {
   const filter=document.getElementById('todo-filter').value||'open';
-  const items=state.todos.filter(t=>filter==='archived'?t.archived:!t.archived&&(filter==='done'?t.done:!t.done&&(filter==='due'?todoDue(t):filter==='later'?!todoDue(t):true))).slice().sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
+  const query=document.getElementById('todo-search').value.trim().toLowerCase();
+  let items=state.todos.filter(t=>filter==='archived'?t.archived:!t.archived&&(filter==='done'?t.done:!t.done&&(filter==='due'?todoDue(t):filter==='later'?!todoDue(t):true))).slice().sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
+  items=items.filter(t=>[t.name,t.notes,...(t.links||[])].join(' ').toLowerCase().includes(query));
   setText('todo-count',`${items.length} items`); setText('todo-suggestion-text','Pick something you’ve been meaning to do.');
-  document.getElementById('todo-list').innerHTML=items.length?items.map(t=>`<article class="card todo-item"><div class="card-heading"><h3>${escHtml(t.name)}</h3><span class="small-pill">${t.done?'Completed':t.date?(todoDue(t)?'Due · ':'')+escHtml(t.date):'Someday'}</span></div><p>${escHtml(t.notes||'')}</p><div class="todo-actions"><span>${t.minutes ? t.minutes+' min' : 'No time target'}</span>${!t.done&&!t.archived?`<button class="btn btn-primary" onclick="startTodo(${t.id})">Start ↗</button><button class="text-button" onclick="changeTodo(${t.id},'tomorrow')">Tomorrow</button>`:''}${!t.archived?`<button class="text-button" onclick="changeTodo(${t.id},'done')">${t.done?'Reopen':'Mark done'}</button>`:''}<button class="text-button" onclick="editTodo(${t.id})">Edit</button><button class="text-button" onclick="changeTodo(${t.id},'archive')">${t.archived?'Restore':'Archive'}</button></div></article>`).join(''):'<div class="card todo-item"><h3>A little breathing room.</h3><p>No items in this view. Save a task for later or try another view.</p></div>';
+  document.getElementById('todo-list').innerHTML=items.length?items.map(t=>`<article class="card todo-item"><div class="card-heading"><h3>${escHtml(t.name)}</h3><span class="small-pill">${t.done?'Completed':t.date?(todoDue(t)?'Due · ':'')+escHtml(t.date):'Someday'}</span></div><p>${escHtml(t.notes||'')}</p>${reminderResources(t)}<div class="todo-actions"><span>${t.minutes ? t.minutes+' min' : 'No time target'}</span>${!t.done&&!t.archived?`<button class="btn btn-primary" onclick="startTodo(${t.id})">Start ↗</button><button class="text-button" onclick="changeTodo(${t.id},'tomorrow')">Tomorrow</button>`:''}${!t.archived?`<button class="text-button" onclick="changeTodo(${t.id},'done')">${t.done?'Reopen':'Mark done'}</button>`:''}<button class="text-button" onclick="editTodo(${t.id})">Edit</button><button class="text-button" onclick="changeTodo(${t.id},'archive')">${t.archived?'Restore':'Archive'}</button></div></article>`).join(''):'<div class="card todo-item"><h3>A little breathing room.</h3><p>No items in this view. Save a task for later or try another view.</p></div>';
 }
 function renderReminderNudge() {
   const el=document.getElementById('today-reminders'); if (!el) return;
@@ -1722,7 +1731,7 @@ function renderReminderNudge() {
 }
 function reflectionDetails(log) {
   const worth={yes:'Worthwhile',partly:'Partly worthwhile',no:'Not worthwhile this time'}[log.worth];
-  return `${worth?`<p class="reflection-detail"><strong>${worth}</strong></p>`:''}${log.mistakes?`<p class="reflection-detail"><strong>Mistakes / obstacles:</strong> ${escHtml(log.mistakes)}</p>`:''}${log.lesson?`<p class="reflection-detail"><strong>Next time:</strong> ${escHtml(log.lesson)}</p>`:''}`;
+  return `${log.learned?`<p class="reflection-detail"><strong>Learned:</strong> ${escHtml(log.learned)}</p>`:''}${log.focus?`<p>Focus: ${escHtml(log.focus)}</p>`:''}${log.rating?`<p>Session rating: ${escHtml(log.rating)} / 5</p>`:''}${worth?`<p class="reflection-detail"><strong>${worth}</strong></p>`:''}${log.mistakes?`<p class="reflection-detail"><strong>Mistakes / obstacles:</strong> ${escHtml(log.mistakes)}</p>`:''}${log.lesson?`<p class="reflection-detail"><strong>Next time:</strong> ${escHtml(log.lesson)}</p>`:''}`;
 }
 function renderWorkLessons() {
   const lessons=state.workLogs.filter(l=>l.lesson||l.mistakes).slice(-3).reverse();
@@ -1880,4 +1889,15 @@ function toggleTaskPomodoro(){
   if(state.focus.completed&&nextFocusMode()==='focus'&&!state.workSession){selectFocusMode('focus');toggleTaskPomodoro();return;}
   if(state.workSession?.pomodoro&&!state.workSession.endedAt&&focusMode()==='focus'){const s=state.workSession;if(state.focus.endAt)s.pausedAt=Date.now();else if(s.pausedAt){(s.pauseIntervals ||= []).push([s.pausedAt,Date.now()]);s.pausedMs+=Date.now()-s.pausedAt;s.pausedAt=null;}}
   toggleFocus();save();renderWork();
+}
+
+function reminderLink(value){try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}}
+function reminderResources(t){return `<div class="reminder-links">${(t.links||[]).filter(reminderLink).map(link=>`<a href="${escHtml(reminderLink(link))}" target="_blank" rel="noopener noreferrer">↗ ${escHtml(link)}</a>`).join('')}</div><div class="reminder-images">${(t.images||[]).filter(x=>/^data:image\/(jpeg|png|webp);base64,/.test(x)).map(x=>`<a href="${escHtml(x)}" download="reminder-image"><img src="${escHtml(x)}" alt="Saved reference image" loading="lazy"/></a>`).join('')}</div>`;}
+function renderReminderImages(){document.getElementById('todo-image-preview').innerHTML=reminderImages.map((x,i)=>`<div><img src="${escHtml(x)}" alt="Image ${i+1}"/><button type="button" class="text-button" onclick="reminderImages.splice(${i},1);renderReminderImages()">Remove image ${i+1}</button></div>`).join('');}
+async function addReminderImages(input){
+  if(reminderImagesLoading)return;
+  const files=Array.from(input.files||[]);setText('todo-error','');
+  if(files.length+reminderImages.length>3||files.some(f=>!['image/jpeg','image/png','image/webp'].includes(f.type)||f.size>10000000)){setText('todo-error','Choose up to 3 PNG, JPEG, or WebP images, each under 10 MB.');input.value='';return;}
+  reminderImagesLoading=true;const version=reminderDraftVersion;
+  try{const added=[];for(const file of files){const url=URL.createObjectURL(file);try{const img=new Image();img.src=url;await img.decode();const scale=Math.min(1,1000/Math.max(img.width,img.height));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);const data=canvas.toDataURL('image/webp',.75);if(data.length>500000)throw new Error('large');added.push(data);}finally{URL.revokeObjectURL(url);}}if(version===reminderDraftVersion){reminderImages.push(...added);renderReminderImages();}}catch{setText('todo-error','Could not save that image. Try a smaller image.');}finally{reminderImagesLoading=false;input.value='';}
 }
