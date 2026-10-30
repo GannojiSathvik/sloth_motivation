@@ -2981,3 +2981,5 @@ a.btn, a.btn-ai, a.local-profile { text-decoration: none; }
 #tab-work.is-pomodoro>.dashboard-heading{display:none}#tab-work.is-pomodoro>.section-tabs{margin-bottom:20px}
 
 .reminder-images{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}.reminder-images>div,.reminder-images>a{max-width:160px}.reminder-images img{width:160px;height:120px;object-fit:contain;background:#101711;border-radius:10px;border:1px solid #394735}.reminder-links{display:grid;gap:10px;margin:12px 0}.reminder-links a{color:#b9dcb8;overflow-wrap:anywhere}#todo-error{color:#efb4a5}#todo-search{margin:12px 0}
+
+.calendar-event.status-recorded{background:#254a40;border-color:#7bceb1;border-left:3px solid #91dfc3;color:#e2fff1;opacity:1}.calendar-event.status-recorded strong{text-decoration:none}

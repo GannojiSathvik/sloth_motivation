@@ -146,3 +146,5 @@ The sidebar includes direct Timetable and Daily Fuel links. Timetable offers day
 Starting a saved reminder starts its stopwatch immediately. Finish & reflect records what you did, what you learned, focus level, a 1–5 session rating, mistakes, and your next improvement. Pomodoro opens the same reflection when its focus round completes.
 
 Tasks & reminders supports searchable notes, up to 20 HTTP(S) links, and up to 3 compressed reference images per item. Images remain in browser storage and backups; no upload service is used. Reminder storage failures preserve the draft and existing records. Dates surface reminders inside the app, not as background notifications.
+
+Saved work sessions automatically appear in Timetable as Actual blocks alongside Planned blocks. These derive from work logs without creating extra tasks or changing metrics. Overnight sessions appear on both days. The block spans start to finish; its details show net tracked work, pauses, distractions, and the reflection.

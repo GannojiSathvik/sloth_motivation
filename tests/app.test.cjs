@@ -286,3 +286,15 @@ test('reminder storage failure keeps the previous saved items and the draft',()=
 });
 
 test('tasks and reminders have separate routes and lists without losing old resources',()=>{const a=app();a.run("state.todos=[{id:1,name:'Task',done:false},{id:2,name:'Reference',links:['https://example.com']},{id:3,name:'Note',kind:'reminder'}];renderTaskList();renderTodos()");assert.equal(a.run("pageFromPath('/reminders')"),'reminders');assert.match(a.element('tasks-action-list').innerHTML,/>Task</);assert.doesNotMatch(a.element('tasks-action-list').innerHTML,/Reference|Note/);assert.match(a.element('todo-list').innerHTML,/Reference/);assert.match(a.element('todo-list').innerHTML,/Note/);});
+
+test('saved work appears at actual times without duplicating planned tasks or metrics',()=>{
+ const a=app();a.run("state.tasks=[{id:7,name:'DSA',date:'2026-10-30',start:'09:00',end:'10:00',status:'done'}];state.workLogs=[{id:7,taskId:7,taskName:'DSA',startedAt:+new Date('2026-10-30T14:10:00'),endedAt:+new Date('2026-10-30T15:00:00'),actualMs:2400000,pausedMs:600000,outcome:'done',did:'Arrays'}]");
+ assert.equal(a.run("calendarRecordedWork('2026-10-30')[0].start"),'14:10');assert.equal(a.run("calendarRecordedWork('2026-10-30')[0].end"),'15:00');
+ a.element('timetable-date').value='2026-10-30';a.run('renderTimetable();renderTimetable()');assert.match(a.element('blocks-wrap').innerHTML,/Actual · DSA/);assert.match(a.element('blocks-wrap').innerHTML,/Planned · DSA/);assert.equal(a.run('state.tasks.length'),1);assert.equal(a.run('state.workLogs.length'),1);
+ a.run('openRecordedWork(0)');assert.match(a.element('calendar-event-content').innerHTML,/Arrays/);assert.match(a.element('calendar-event-content').innerHTML,/pauses/);
+});
+test('recorded calendar sessions split at midnight and exclude invalid or unfinished logs',()=>{
+ const a=app();a.run("state.workLogs=[{taskName:'Late work',startedAt:+new Date('2026-10-30T23:30:00'),endedAt:+new Date('2026-10-31T00:30:00')},{taskName:'Unfinished',startedAt:Date.now(),endedAt:null}]");
+ assert.equal(a.run("calendarRecordedWork('2026-10-30')[0].end"),'24:00');assert.equal(a.run("calendarRecordedWork('2026-10-31')[0].start"),'00:00');assert.equal(a.run("calendarRecordedWork('2026-10-31')[0].end"),'00:30');assert.equal(a.run("calendarRecordedWork('2026-11-01').length"),0);
+ a.run("state.workLogs[0].endedAt=+new Date('2026-10-31T00:00:00')");assert.equal(a.run("calendarRecordedWork('2026-10-31').length"),0);
+});

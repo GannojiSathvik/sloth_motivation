@@ -596,6 +596,23 @@ function calendarLanes(tasks){
   function finish(){const ends=[];for(const t of group){let lane=ends.findIndex(end=>end<=t.start);if(lane<0)lane=ends.length;ends[lane]=t.end;result.push({task:t,lane,group});}for(const item of result.filter(x=>x.group===group))item.columns=ends.length;group=[];}
   for(const t of sorted){if(group.length&&t.start>=groupEnd)finish();if(!group.length)groupEnd=t.end;else if(t.end>groupEnd)groupEnd=t.end;group.push(t);}finish();return result;
 }
+// Recorded sessions are projected into the calendar, never copied into planned tasks.
+function calendarRecordedWork(date){
+  const [dayStart,dayEnd]=TimeMetrics.bounds(date);
+  const clock=ms=>{const d=new Date(ms);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+  return state.workLogs.flatMap((log,index)=>{
+    if(!Number.isFinite(log.startedAt)||!Number.isFinite(log.endedAt)||log.endedAt<=log.startedAt)return [];
+    const start=Math.max(dayStart,log.startedAt),end=Math.min(dayEnd,log.endedAt);if(end<=start)return [];
+    return [{id:index,recorded:true,name:log.taskName,start:clock(start),end:end===dayEnd?'24:00':clock(end),category:'focus',status:'recorded',date}];
+  });
+}
+function calendarTime(time){return time==='24:00'?'12:00 AM':formatTime(time);}
+function openRecordedWork(index){
+  const log=state.workLogs[index];if(!log)return;
+  const timestamp=value=>new Date(value).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true});
+  document.getElementById('calendar-event-content').innerHTML=`<span class="small-pill">Recorded work</span><h3>${escHtml(log.taskName)}</h3><p>${escHtml(timestamp(log.startedAt))} → ${escHtml(timestamp(log.endedAt))}</p><p><strong>${durationLabel(log.actualMs??Math.max(0,log.endedAt-log.startedAt-(log.pausedMs||0)-(log.distractedMs||0)))}</strong> tracked work · ${durationLabel(log.pausedMs||0)} paused · ${durationLabel(log.distractedMs||0)} distractions</p><p class="todo-help">The calendar block shows the full start-to-finish span, including pauses. Tracked work excludes pauses and reported distractions.</p><p><strong>Achieved:</strong> ${escHtml(log.did||'')}</p><p><strong>Where:</strong> ${escHtml(log.where||'')}</p><p><strong>Outcome:</strong> ${escHtml({done:'Completed',partial:'Partly completed',pending:'Not achieved yet'}[log.outcome]||'Recorded')}</p>${reflectionDetails(log)}`;
+  openModal('modal-calendar-event');
+}
 function renderTimetable() {
   const dp=document.getElementById('timetable-date');if(!dp.value)dp.value=todayStr();const date=dp.value;
   const monday=new Date(date+'T12:00:00');monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
@@ -605,7 +622,7 @@ function renderTimetable() {
   document.getElementById('time-axis').innerHTML='';
   const now=new Date(),nowMinute=now.getHours()*60+now.getMinutes();
   const wrap=document.getElementById('blocks-wrap');const oldScroll=wrap.querySelector('.calendar-scroll')?.scrollTop;
-  wrap.innerHTML=`<div class="calendar-scroll"><div class="calendar-grid" style="--days:${days.length}"><div class="calendar-corner">${Intl.DateTimeFormat().resolvedOptions().timeZone.split('/').pop()}</div>${days.map(d=>`<button class="calendar-day-heading ${d===todayStr()?'is-today':''}" onclick="chooseScheduleDay('${d}');setCalendarView('day')"><span>${new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}</span><strong>${Number(d.slice(-2))}</strong></button>`).join('')}<div class="calendar-hours">${Array.from({length:24},(_,h)=>`<span style="top:${h*60}px">${formatTime(String(h).padStart(2,'0')+':00')}</span>`).join('')}</div>${days.map(d=>{const tasks=state.tasks.filter(t=>t.date===d&&t.status!=='rescheduled');return `<div class="calendar-day-column">${Array.from({length:24},(_,h)=>`<button class="calendar-slot" aria-label="Add block on ${d} at ${formatTime(String(h).padStart(2,'0')+':00')}" onclick="openCalendarSlot('${d}',${h})"></button>`).join('')}${calendarLanes(tasks).map(({task:t,lane,columns})=>{const [h,m]=t.start.split(':').map(Number);return `<button class="calendar-event cat-${escAttr(t.category)} status-${escAttr(t.status)}" style="top:${h*60+m}px;height:${Math.max(18,taskDuration(t)-2)}px;left:calc(${lane/columns*100}% + 2px);width:calc(${100/columns}% - 5px)" onclick="openCalendarEvent(${t.id})" aria-label="${escAttr(t.name)}, ${formatTime(t.start)} to ${formatTime(t.end)}, ${escAttr(taskLabel(t))}"><strong>${escHtml(t.name)}</strong>${taskDuration(t)>=30?`<span>${formatTime(t.start)} – ${formatTime(t.end)}</span>`:''}</button>`;}).join('')}${d===todayStr()?`<div class="calendar-now" style="top:${nowMinute}px"><i></i></div>`:''}</div>`;}).join('')}</div></div><p class="calendar-hint">Click an empty hour to add a block. Click a task to view, edit, or start it.</p>`;
+  wrap.innerHTML=`<div class="calendar-scroll"><div class="calendar-grid" style="--days:${days.length}"><div class="calendar-corner">${Intl.DateTimeFormat().resolvedOptions().timeZone.split('/').pop()}</div>${days.map(d=>`<button class="calendar-day-heading ${d===todayStr()?'is-today':''}" onclick="chooseScheduleDay('${d}');setCalendarView('day')"><span>${new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}</span><strong>${Number(d.slice(-2))}</strong></button>`).join('')}<div class="calendar-hours">${Array.from({length:24},(_,h)=>`<span style="top:${h*60}px">${formatTime(String(h).padStart(2,'0')+':00')}</span>`).join('')}</div>${days.map(d=>{const tasks=[...state.tasks.filter(t=>t.date===d&&t.status!=='rescheduled'),...calendarRecordedWork(d)];return `<div class="calendar-day-column">${Array.from({length:24},(_,h)=>`<button class="calendar-slot" aria-label="Add block on ${d} at ${formatTime(String(h).padStart(2,'0')+':00')}" onclick="openCalendarSlot('${d}',${h})"></button>`).join('')}${calendarLanes(tasks).map(({task:t,lane,columns})=>{const [h,m]=t.start.split(':').map(Number);return `<button class="calendar-event cat-${escAttr(t.category)} status-${escAttr(t.status)}" style="top:${h*60+m}px;height:${Math.max(18,taskDuration(t)-2)}px;left:calc(${lane/columns*100}% + 2px);width:calc(${100/columns}% - 5px)" onclick="${t.recorded?'openRecordedWork':'openCalendarEvent'}(${t.id})" aria-label="${t.recorded?'Recorded work':'Planned'}: ${escAttr(t.name)}, ${calendarTime(t.start)} to ${calendarTime(t.end)}"><strong>${t.recorded?'✓ Actual · ':'Planned · '}${escHtml(t.name)}</strong>${taskDuration(t)>=30?`<span>${calendarTime(t.start)} – ${calendarTime(t.end)}</span>`:''}</button>`;}).join('')}${d===todayStr()?`<div class="calendar-now" style="top:${nowMinute}px"><i></i></div>`:''}</div>`;}).join('')}</div></div><p class="calendar-hint">Planned blocks show your schedule. ✓ Actual blocks show saved sessions at their recorded times. Click a block for details, or an empty hour to plan.</p>`;
   const scroll=wrap.querySelector('.calendar-scroll');if(scroll)scroll.scrollTop=oldScroll??Math.max(0,(days.includes(todayStr())?now.getHours()-1:8)*60);
 }
 function openCalendarSlot(date,hour){chooseScheduleDay(date);openAddTask();document.getElementById('task-date').value=date;document.getElementById('task-start').value=String(hour).padStart(2,'0')+':00';document.getElementById('task-end').value=String(hour).padStart(2,'0')+':30';syncTimeControls();}
@@ -1425,7 +1442,7 @@ function saveWorkLog() {
   clearForm(['work-did', 'work-where', 'work-name', 'work-expected', 'work-mistakes', 'work-lesson','work-learned','work-focus','work-rating']);
   document.getElementById('work-worth').value='yes';
   document.getElementById('work-outcome').value='done';
-  updateDashboard(); renderWork(); renderJournal();
+  updateDashboard(); renderWork(); renderJournal(); renderTimetable();
   showToast('Work logged. Your time comparison is saved automatically.');
 }
 function renderWorkHistory() {
