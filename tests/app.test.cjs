@@ -261,3 +261,15 @@ test('task Pomodoro deadline stops work and opens reflection without double-coun
  const a=app();a.element('pomodoro-task-name').value='Arrays';a.run('toggleTaskPomodoro(); state.workSession.startedAt=Date.now()-1500000;state.focus.segmentStart=state.workSession.startedAt;state.focus.endAt=Date.now()-1;renderFocus()');
  assert.ok(a.run('state.workSession.endedAt'));assert.equal(a.run('state.focus.endAt'),null);assert.ok(a.element('correct-end').value);assert.ok(a.run('TimeMetrics.daily(state,todayStr()).workMs<=1500000'));
 });
+
+test('50-minute Pomodoro persists and uses its own duration for task and session credit',()=>{
+ const a=app();a.run('setPomodoroLength(50);load()');assert.equal(a.run('state.focus.remaining'),3000);a.element('pomodoro-task-name').value='Deep work';a.run('toggleTaskPomodoro()');assert.equal(a.run('state.workSession.plannedMinutes'),50);
+ a.run('setPomodoroLength(25)');assert.equal(a.run('state.pomodoroMinutes'),50);
+ a.run('state.workSession.startedAt=Date.now()-3000000;state.focus.segmentStart=state.workSession.startedAt;state.focus.endAt=Date.now()-1;renderFocus()');assert.equal(a.run('state.focusSessions[0].minutes'),50);assert.ok(a.run('state.workSession.endedAt'));
+});
+test('calendar puts overlapping events side by side and reuses lanes for adjacent events',()=>{
+ const a=app();a.run("var lanes=calendarLanes([{id:1,start:'09:00',end:'10:00'},{id:2,start:'09:30',end:'10:30'},{id:3,start:'10:30',end:'11:00'}])");assert.equal(a.run('lanes[0].columns'),2);assert.notEqual(a.run('lanes[0].lane'),a.run('lanes[1].lane'));assert.equal(a.run('lanes[2].columns'),1);
+});
+test('calendar slot prefills a half-hour block on the selected date',()=>{
+ const a=app();a.run("openCalendarSlot('2026-11-02',15)");assert.equal(a.element('task-date').value,'2026-11-02');assert.equal(a.element('task-start').value,'15:00');assert.equal(a.element('task-end').value,'15:30');
+});

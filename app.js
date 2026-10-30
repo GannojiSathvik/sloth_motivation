@@ -452,7 +452,7 @@ function renderPage(page, { focus = true } = {}) {
   const panel = document.getElementById('tab-' + page);
   panel.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(link => {
-    const active = link.dataset.page === ({timetable:'planner',journal:'progress',quotes:'progress'}[page] || page);
+    const active = link.dataset.page === ({journal:'progress'}[page] || page);
     link.classList.toggle('active', active);
     if (active) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
@@ -461,7 +461,7 @@ function renderPage(page, { focus = true } = {}) {
   document.title = `${PAGES[page].title} — SlothMotivate`;
 
   if (page === 'dashboard') updateDashboard();
-  if (page === 'work') renderWork();
+  if (page === 'work') {renderWork();chooseWorkMode(state.workSession?.pomodoro?'pomodoro':state.workMode||'stopwatch');}
   if (page === 'account') renderLocalStorage();
   if (page === 'timetable') renderTimetable();
   if (page === 'journal') renderJournal();
@@ -586,14 +586,28 @@ function clearForm(ids) {
   });
 }
 
-function renderTimetable() {
-  const dp=document.getElementById('timetable-date'); if(!dp.value)dp.value=todayStr();
-  const date=dp.value;
-  const days=Array.from({length:7},(_,i)=>{const d=new Date(date+'T12:00:00');d.setDate(d.getDate()-((d.getDay()+6)%7)+i);return localDate(d);});
-  document.getElementById('time-axis').innerHTML=`<div class="week-strip">${days.map(d=>`<button class="day-choice ${d===date?'selected':''}" onclick="chooseScheduleDay('${d}')"><span>${new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}</span><strong>${Number(d.slice(-2))}</strong><small>${state.tasks.filter(t=>t.date===d&&t.status!=='rescheduled').length} blocks</small></button>`).join('')}</div>`;
-  const tasks=state.tasks.filter(t=>t.date===date).slice().sort((a,b)=>a.start.localeCompare(b.start));
-  document.getElementById('blocks-wrap').innerHTML=tasks.length?tasks.map(t=>`<article class="agenda-item status-${t.status}"><div class="agenda-time">${formatTime(t.start)}<small>${formatTime(t.end)}</small></div><div><span class="small-pill">${escHtml(taskLabel(t))} · ${taskDuration(t)} min</span><h3>${escHtml(t.name)}</h3><p>${escHtml(t.expected||t.desc||'Add an outcome to make this block easier to finish.')}</p>${t.expected&&t.desc?`<details><summary>Steps & resources</summary><p>${escHtml(t.desc)}</p></details>`:''}</div><div class="agenda-actions">${['pending','partial'].includes(t.status)?`<button class="btn btn-primary" onclick="startWork(${t.id})">${t.category==='break'?'Take a break':'Start'}</button>`:''}<button class="text-button" onclick="editTask(${t.id})">Edit</button><button class="text-button" onclick="setTaskStatus(${t.id},'done')">Done</button><button class="text-button" onclick="setTaskStatus(${t.id},'skipped')">Skip</button></div></article>`).join(''):'<div class="schedule-empty"><h2>A little room for possibility.</h2><p>Describe your available hours and let AI arrange your day.</p><a href="/planner" data-page="planner" class="btn btn-primary">Plan my day</a></div>';
+let calendarView='week';
+function setCalendarView(view){calendarView=view==='day'?'day':'week';renderTimetable();}
+function calendarLanes(tasks){
+  const sorted=tasks.slice().sort((a,b)=>a.start.localeCompare(b.start)||a.end.localeCompare(b.end));
+  const result=[];let group=[],groupEnd='';
+  function finish(){const ends=[];for(const t of group){let lane=ends.findIndex(end=>end<=t.start);if(lane<0)lane=ends.length;ends[lane]=t.end;result.push({task:t,lane,group});}for(const item of result.filter(x=>x.group===group))item.columns=ends.length;group=[];}
+  for(const t of sorted){if(group.length&&t.start>=groupEnd)finish();if(!group.length)groupEnd=t.end;else if(t.end>groupEnd)groupEnd=t.end;group.push(t);}finish();return result;
 }
+function renderTimetable() {
+  const dp=document.getElementById('timetable-date');if(!dp.value)dp.value=todayStr();const date=dp.value;
+  const monday=new Date(date+'T12:00:00');monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
+  const days=calendarView==='day'?[date]:Array.from({length:7},(_,i)=>{const d=new Date(monday);d.setDate(d.getDate()+i);return localDate(d);});
+  setText('calendar-range',new Date(date+'T12:00:00').toLocaleDateString('en-US',{month:'long',year:'numeric'}));
+  for(const view of ['day','week'])document.getElementById('calendar-'+view)?.setAttribute('aria-pressed',String(view===calendarView));
+  document.getElementById('time-axis').innerHTML='';
+  const now=new Date(),nowMinute=now.getHours()*60+now.getMinutes();
+  const wrap=document.getElementById('blocks-wrap');const oldScroll=wrap.querySelector('.calendar-scroll')?.scrollTop;
+  wrap.innerHTML=`<div class="calendar-scroll"><div class="calendar-grid" style="--days:${days.length}"><div class="calendar-corner">${Intl.DateTimeFormat().resolvedOptions().timeZone.split('/').pop()}</div>${days.map(d=>`<button class="calendar-day-heading ${d===todayStr()?'is-today':''}" onclick="chooseScheduleDay('${d}');setCalendarView('day')"><span>${new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}</span><strong>${Number(d.slice(-2))}</strong></button>`).join('')}<div class="calendar-hours">${Array.from({length:24},(_,h)=>`<span style="top:${h*60}px">${formatTime(String(h).padStart(2,'0')+':00')}</span>`).join('')}</div>${days.map(d=>{const tasks=state.tasks.filter(t=>t.date===d&&t.status!=='rescheduled');return `<div class="calendar-day-column">${Array.from({length:24},(_,h)=>`<button class="calendar-slot" aria-label="Add block on ${d} at ${formatTime(String(h).padStart(2,'0')+':00')}" onclick="openCalendarSlot('${d}',${h})"></button>`).join('')}${calendarLanes(tasks).map(({task:t,lane,columns})=>{const [h,m]=t.start.split(':').map(Number);return `<button class="calendar-event cat-${escAttr(t.category)} status-${escAttr(t.status)}" style="top:${h*60+m}px;height:${Math.max(18,taskDuration(t)-2)}px;left:calc(${lane/columns*100}% + 2px);width:calc(${100/columns}% - 5px)" onclick="openCalendarEvent(${t.id})" aria-label="${escAttr(t.name)}, ${formatTime(t.start)} to ${formatTime(t.end)}, ${escAttr(taskLabel(t))}"><strong>${escHtml(t.name)}</strong>${taskDuration(t)>=30?`<span>${formatTime(t.start)} – ${formatTime(t.end)}</span>`:''}</button>`;}).join('')}${d===todayStr()?`<div class="calendar-now" style="top:${nowMinute}px"><i></i></div>`:''}</div>`;}).join('')}</div></div><p class="calendar-hint">Click an empty hour to add a block. Click a task to view, edit, or start it.</p>`;
+  const scroll=wrap.querySelector('.calendar-scroll');if(scroll)scroll.scrollTop=oldScroll??Math.max(0,(days.includes(todayStr())?now.getHours()-1:8)*60);
+}
+function openCalendarSlot(date,hour){chooseScheduleDay(date);openAddTask();document.getElementById('task-date').value=date;document.getElementById('task-start').value=String(hour).padStart(2,'0')+':00';document.getElementById('task-end').value=String(hour).padStart(2,'0')+':30';syncTimeControls();}
+function openCalendarEvent(id){const t=state.tasks.find(t=>t.id===id);if(!t)return;document.getElementById('calendar-event-content').innerHTML=`<span class="small-pill">${escHtml(taskLabel(t))}</span><h3>${escHtml(t.name)}</h3><p>${escHtml(t.date)} · ${formatTime(t.start)} – ${formatTime(t.end)}</p>${t.expected?`<p><b>Expected:</b> ${escHtml(t.expected)}</p>`:''}<p class="calendar-description">${escHtml(t.desc||'')}</p><div class="account-buttons">${['pending','partial'].includes(t.status)?`<button class="btn btn-primary" onclick="closeModal('modal-calendar-event');startWork(${t.id})">${t.category==='break'?'Take a break':'Start task'}</button>`:''}<button class="btn btn-ghost" onclick="closeModal('modal-calendar-event');editTask(${t.id})">Edit</button><button class="text-button" onclick="setTaskStatus(${t.id},'done');closeModal('modal-calendar-event')">Mark done</button><button class="text-button" onclick="setTaskStatus(${t.id},'skipped');closeModal('modal-calendar-event')">Skip</button></div>`;openModal('modal-calendar-event');}
 
 function setTaskStatus(id, status) {
   const task = state.tasks.find(t => t.id === id);
@@ -1014,7 +1028,7 @@ function updateCurrentTask() {
     if (linksEl) linksEl.innerHTML   = '';
     window._activeTaskId = null;
   }
-  document.getElementById('current-actions').hidden = !active;
+  const actions=document.getElementById('current-actions');if(actions)actions.hidden=!active;
 }
 
 function markCurrentDone() {
@@ -1179,13 +1193,19 @@ function showToast(message) {
   toastTimeout = setTimeout(() => toast.classList.remove('show'), 4200);
 }
 const POMODORO_MODES = { focus: { seconds:1500, label:'Focus' }, short: { seconds:300, label:'Short break' }, long: { seconds:900, label:'Long break' } };
+function focusSettings(mode=focusMode()) { return mode==='focus' ? {seconds:(state.pomodoroMinutes===50?50:25)*60,label:'Focus'} : POMODORO_MODES[mode]; }
+function setPomodoroLength(minutes) {
+  if(![25,50].includes(minutes))return;
+  if(state.focus.endAt || (state.workSession?.pomodoro&&!state.workSession.endedAt) || (!state.focus.completed&&state.focus.remaining<focusSettings().seconds)){showToast('Finish or reset this session before changing its length.');return;}
+  state.pomodoroMinutes=minutes;selectFocusMode('focus');
+}
 function focusMode() { return POMODORO_MODES[state.focus.mode] ? state.focus.mode : 'focus'; }
 function nextFocusMode() { return focusMode()==='focus' ? ((state.focus.rounds||0)%4===0 ? 'long':'short') : 'focus'; }
 function selectFocusMode(mode) {
   if (!POMODORO_MODES[mode]) return;
   if(state.workSession&&!state.workSession.endedAt&&!state.workSession.pausedAt&&mode!=='focus'){showToast('Finish and reflect on your task before switching to a break.');return;}
   if (state.focus.endAt) { showToast('Pause the timer before switching modes.'); return; }
-  state.focus={mode,remaining:POMODORO_MODES[mode].seconds,endAt:null,completed:false,rounds:state.focus.rounds||0};
+  state.focus={mode,remaining:focusSettings(mode).seconds,endAt:null,completed:false,rounds:state.focus.rounds||0};
   save(); renderFocus();
 }
 function toggleFocus() {
@@ -1206,11 +1226,11 @@ function toggleFocus() {
 function resetFocus() {
   if(state.workSession?.pomodoro&&!state.workSession.endedAt){finishWork();return;}
   const mode=focusMode(), rounds=state.focus.rounds||0;
-  state.focus={mode,rounds,remaining:POMODORO_MODES[mode].seconds,endAt:null,completed:false};
+  state.focus={mode,rounds,remaining:focusSettings(mode).seconds,endAt:null,completed:false};
   save(); renderFocus(); showToast('Timer reset. Start when you’re ready.');
 }
 function renderFocus() {
-  const mode=focusMode(), settings=POMODORO_MODES[mode];
+  const mode=focusMode(), settings=focusSettings(mode);
   const remaining=state.focus.endAt?Math.max(0,Math.ceil((state.focus.endAt-Date.now())/1000)):state.focus.remaining;
   if (state.focus.endAt && remaining===0) {
     const finishedAt=state.focus.endAt, overlapsWork=Boolean(state.focus.overlapsWork);
@@ -1228,6 +1248,9 @@ function renderFocus() {
   setText('focus-play-icon',running?'Ⅱ':'▶');
   setText('focus-state',state.focus.completed?'SESSION COMPLETE':running?settings.label.toUpperCase():remaining<settings.seconds?'PAUSED':settings.label.toUpperCase());
   setText('pomodoro-rounds',`${state.focus.rounds||0} focus sessions · long break after every 4`);
+  for(const length of [25,50]){const button=document.getElementById('pomodoro-length-'+length);if(button){button.setAttribute('aria-pressed',String((state.pomodoroMinutes||25)===length));button.disabled=running||Boolean(state.workSession?.pomodoro&&!state.workSession.endedAt);}}
+  const taskInput=document.getElementById('pomodoro-task-name');if(taskInput){taskInput.disabled=Boolean(state.workSession?.pomodoro);if(state.workSession?.pomodoro)taskInput.value=state.workSession.taskName;}
+  const finish=document.getElementById('pomodoro-finish');if(finish)finish.hidden=!state.workSession?.pomodoro;
   setText('pomodoro-mode-label',`${settings.seconds/60} MIN ${settings.label.toUpperCase()}`);
   document.getElementById('focus-ring').style.strokeDashoffset=666*(1-remaining/settings.seconds);
   document.getElementById('focus-toggle').setAttribute('aria-pressed',String(running));
@@ -1776,7 +1799,7 @@ function taskLabel(t) {
   return +new Date(t.date+'T'+t.end)<Date.now()?'Missed':'Planned';
 }
 function chooseScheduleDay(date){document.getElementById('timetable-date').value=date;renderTimetable();}
-function shiftScheduleDay(delta){const d=new Date(document.getElementById('timetable-date').value+'T12:00:00');d.setDate(d.getDate()+delta);chooseScheduleDay(localDate(d));}
+function shiftScheduleDay(delta){if(calendarView==='day')delta=Math.sign(delta);const d=new Date(document.getElementById('timetable-date').value+'T12:00:00');d.setDate(d.getDate()+delta);chooseScheduleDay(localDate(d));}
 function editTask(id){const task=state.tasks.find(t=>t.id===id);if(!task)return;openAddTask();editingTaskId=id;for(const [field,key] of Object.entries({name:'name',desc:'desc',expected:'expected',start:'start',end:'end',date:'date',category:'category'}))document.getElementById('task-'+field).value=task[key]||'';document.getElementById('task-links').value=(task.links||[]).join('\n');syncTimeControls();}
 function localInputTime(ms){const d=new Date(ms);return localDate(d)+'T'+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
 function prepareCorrections(s){
@@ -1829,7 +1852,7 @@ function installTimeControls(){
   });syncTimeControls();
 }
 function syncTimeControls(){document.querySelectorAll('input[data-clock-ready]').forEach(input=>{const controls=input.nextElementSibling?.querySelectorAll('select');if(!controls?.length)return;const [h,m]=(input.value||'09:00').split(':').map(Number);controls[0].value=h%12||12;controls[1].value=m;controls[2].value=h>=12?'PM':'AM';});}
-function chooseWorkMode(mode){document.getElementById('stopwatch-panel').hidden=mode!=='stopwatch';document.getElementById('pomodoro-panel').hidden=mode!=='pomodoro';document.querySelectorAll('[data-work-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.workMode===mode)));}
+function chooseWorkMode(mode){document.getElementById('tab-work').classList[mode==='pomodoro'?'add':'remove']('is-pomodoro');state.workMode=mode;save();document.getElementById('stopwatch-panel').hidden=mode!=='stopwatch';document.getElementById('pomodoro-panel').hidden=mode!=='pomodoro';document.querySelectorAll('[data-work-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.workMode===mode)));}
 
 function parseAvailability(raw,start,end){
   if(!raw.trim())return [{start,end}];
@@ -1852,7 +1875,7 @@ function toggleTaskPomodoro(){
   if(state.workSession?.endedAt){finishWork();return;}
   if(focusMode()==='focus'&&!state.workSession&&!state.focus.completed){
     const name=document.getElementById('pomodoro-task-name').value.trim();if(!name){showToast('Name the task you want to focus on.');document.getElementById('pomodoro-task-name').focus();return;}
-    document.getElementById('work-task').value='';document.getElementById('work-name').value=name;document.getElementById('work-planned').value='25';startWork();state.workSession.pomodoro=true;chooseWorkMode('pomodoro');
+    document.getElementById('work-task').value='';document.getElementById('work-name').value=name;document.getElementById('work-planned').value=String(focusSettings('focus').seconds/60);startWork();state.workSession.pomodoro=true;chooseWorkMode('pomodoro');
   } else if(focusMode()==='focus'&&state.workSession&&!state.workSession.pomodoro){showToast('Finish your stopwatch session before starting a task Pomodoro.');return;}
   if(state.focus.completed&&nextFocusMode()==='focus'&&!state.workSession){selectFocusMode('focus');toggleTaskPomodoro();return;}
   if(state.workSession?.pomodoro&&!state.workSession.endedAt&&focusMode()==='focus'){const s=state.workSession;if(state.focus.endAt)s.pausedAt=Date.now();else if(s.pausedAt){(s.pauseIntervals ||= []).push([s.pausedAt,Date.now()]);s.pausedMs+=Date.now()-s.pausedAt;s.pausedAt=null;}}

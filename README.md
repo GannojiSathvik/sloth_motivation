@@ -22,7 +22,7 @@ Most productivity apps:
 
 **SlothMotivate:**
 - 🛋️ **Zero overwhelm**: Just one right next step.
-- 🧘 **Peaceful Pomodoro**: 25-minute calm focus timer that doesn’t panic.
+- 🧘 **Peaceful Pomodoro**: 25- or 50-minute calm focus timer that doesn’t panic.
 - 🗓️ **Daily Rhythm Timetable**: Block time without breaking your spirit.
 - 📓 **Reflective Journal**: Jot down your thoughts, wins, and the snacks you consumed.
 - 📈 **Gentle Progress & Heatmap**: A 30-day activity grid that celebrates showing up.
@@ -124,7 +124,7 @@ Finish & reflect stops timing before asking what you did, where you worked, whet
 
 ## Pomodoro
 
-Focus includes 25-minute task-linked Pomodoros, 5-minute short breaks, and 15-minute long breaks. Starting a focus round requires a task name and opens a work reflection at completion. After four completed focus sessions it offers a long break. Start the suggested phase when ready; phases never auto-start. Pause/resume and refresh recovery use saved deadlines. Breaks are excluded from focus statistics. The timer settles when the app returns from sleep; it does not issue background notifications with the browser closed.
+Focus includes 25- and 50-minute task-linked Pomodoros, 5-minute short breaks, and 15-minute long breaks. Starting a focus round requires a task name and opens a work reflection at completion. After four completed focus sessions it offers a long break. Start the suggested phase when ready; phases never auto-start. Pause/resume and refresh recovery use saved deadlines. Breaks are excluded from focus statistics. The timer settles when the app returns from sleep; it does not issue background notifications with the browser closed.
 
 ## Daily accounting and data preservation
 
@@ -139,3 +139,5 @@ Focus includes 25-minute task-linked Pomodoros, 5-minute short breaks, and 15-mi
 Established product references informed the distinction between recorded time and classified productivity, rather than copying a proprietary score: [Toggl Summary Report](https://docs.toggl.com/summary-report-in-toggl), [RescueTime activity categories](https://help.rescuetime.com/article/456-managing-your-activities-categories-and-productivity-levels). This app uses the explicit formulas above, not a claimed industry-standard productivity algorithm.
 
 AI can use multiple windows such as `10 AM - 1 PM, 4 PM - 6 PM`. Server and client validate bounds, gaps, and overlap. Preview edits never mutate saved tasks until Apply. Replanning protects completed/running work, and rejects a stale preview if those tasks changed. Review suggestions are currently your own recorded lessons and next-day adjustment; there is no hidden AI analysis of private journal entries.
+
+The sidebar includes direct Timetable and Daily Fuel links. Timetable offers day/week calendar grids with 12-hour labels, clickable empty slots, and side-by-side overlapping events.
