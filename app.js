@@ -458,6 +458,7 @@ function renderPage(page, { focus = true } = {}) {
     if (active) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   });
+  renderGlobalSession();
   setText('page-breadcrumb', PAGES[page].title);
   document.title = `${PAGES[page].title} — SlothMotivate`;
 
@@ -589,6 +590,7 @@ function clearForm(ids) {
 }
 
 let calendarView='week';
+function setCalendarContent(value){if(!['both','planned','actual'].includes(value))return;state.calendarContent=value;save();renderTimetable();}
 function setCalendarView(view){calendarView=view==='day'?'day':'week';renderTimetable();}
 function calendarLanes(tasks){
   const sorted=tasks.slice().sort((a,b)=>a.start.localeCompare(b.start)||a.end.localeCompare(b.end));
@@ -614,6 +616,7 @@ function openRecordedWork(index){
   openModal('modal-calendar-event');
 }
 function renderTimetable() {
+  for(const value of ['both','planned','actual'])document.getElementById('calendar-filter-'+value)?.setAttribute('aria-pressed',String((state.calendarContent||'both')===value));
   const dp=document.getElementById('timetable-date');if(!dp.value)dp.value=todayStr();const date=dp.value;
   const monday=new Date(date+'T12:00:00');monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
   const days=calendarView==='day'?[date]:Array.from({length:7},(_,i)=>{const d=new Date(monday);d.setDate(d.getDate()+i);return localDate(d);});
@@ -622,7 +625,7 @@ function renderTimetable() {
   document.getElementById('time-axis').innerHTML='';
   const now=new Date(),nowMinute=now.getHours()*60+now.getMinutes();
   const wrap=document.getElementById('blocks-wrap');const oldScroll=wrap.querySelector('.calendar-scroll')?.scrollTop;
-  wrap.innerHTML=`<div class="calendar-scroll"><div class="calendar-grid" style="--days:${days.length}"><div class="calendar-corner">${Intl.DateTimeFormat().resolvedOptions().timeZone.split('/').pop()}</div>${days.map(d=>`<button class="calendar-day-heading ${d===todayStr()?'is-today':''}" onclick="chooseScheduleDay('${d}');setCalendarView('day')"><span>${new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}</span><strong>${Number(d.slice(-2))}</strong></button>`).join('')}<div class="calendar-hours">${Array.from({length:24},(_,h)=>`<span style="top:${h*60}px">${formatTime(String(h).padStart(2,'0')+':00')}</span>`).join('')}</div>${days.map(d=>{const tasks=[...state.tasks.filter(t=>t.date===d&&t.status!=='rescheduled'),...calendarRecordedWork(d)];return `<div class="calendar-day-column">${Array.from({length:24},(_,h)=>`<button class="calendar-slot" aria-label="Add block on ${d} at ${formatTime(String(h).padStart(2,'0')+':00')}" onclick="openCalendarSlot('${d}',${h})"></button>`).join('')}${calendarLanes(tasks).map(({task:t,lane,columns})=>{const [h,m]=t.start.split(':').map(Number);return `<button class="calendar-event cat-${escAttr(t.category)} status-${escAttr(t.status)}" style="top:${h*60+m}px;height:${Math.max(18,taskDuration(t)-2)}px;left:calc(${lane/columns*100}% + 2px);width:calc(${100/columns}% - 5px)" onclick="${t.recorded?'openRecordedWork':'openCalendarEvent'}(${t.id})" aria-label="${t.recorded?'Recorded work':'Planned'}: ${escAttr(t.name)}, ${calendarTime(t.start)} to ${calendarTime(t.end)}"><strong>${t.recorded?'✓ Actual · ':'Planned · '}${escHtml(t.name)}</strong>${taskDuration(t)>=30?`<span>${calendarTime(t.start)} – ${calendarTime(t.end)}</span>`:''}</button>`;}).join('')}${d===todayStr()?`<div class="calendar-now" style="top:${nowMinute}px"><i></i></div>`:''}</div>`;}).join('')}</div></div><p class="calendar-hint">Planned blocks show your schedule. ✓ Actual blocks show saved sessions at their recorded times. Click a block for details, or an empty hour to plan.</p>`;
+  wrap.innerHTML=`<div class="calendar-scroll"><div class="calendar-grid" style="--days:${days.length}"><div class="calendar-corner">${Intl.DateTimeFormat().resolvedOptions().timeZone.split('/').pop()}</div>${days.map(d=>`<button class="calendar-day-heading ${d===todayStr()?'is-today':''}" onclick="chooseScheduleDay('${d}');setCalendarView('day')"><span>${new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}</span><strong>${Number(d.slice(-2))}</strong></button>`).join('')}<div class="calendar-hours">${Array.from({length:24},(_,h)=>`<span style="top:${h*60}px">${formatTime(String(h).padStart(2,'0')+':00')}</span>`).join('')}</div>${days.map(d=>{const tasks=[...(state.calendarContent==='actual'?[]:state.tasks.filter(t=>t.date===d&&t.status!=='rescheduled')),...(state.calendarContent==='planned'?[]:calendarRecordedWork(d))];return `<div class="calendar-day-column">${Array.from({length:24},(_,h)=>`<button class="calendar-slot" aria-label="Add block on ${d} at ${formatTime(String(h).padStart(2,'0')+':00')}" onclick="openCalendarSlot('${d}',${h})"></button>`).join('')}${calendarLanes(tasks).map(({task:t,lane,columns})=>{const [h,m]=t.start.split(':').map(Number);return `<button class="calendar-event cat-${escAttr(t.category)} status-${escAttr(t.status)}" style="top:${h*60+m}px;height:${Math.max(18,taskDuration(t)-2)}px;left:calc(${lane/columns*100}% + 2px);width:calc(${100/columns}% - 5px)" onclick="${t.recorded?'openRecordedWork':'openCalendarEvent'}(${t.id})" aria-label="${t.recorded?'Recorded work':'Planned'}: ${escAttr(t.name)}, ${calendarTime(t.start)} to ${calendarTime(t.end)}"><strong>${t.recorded?'✓ Actual · ':'Planned · '}${escHtml(t.name)}</strong>${taskDuration(t)>=30?`<span>${calendarTime(t.start)} – ${calendarTime(t.end)}</span>`:''}</button>`;}).join('')}${d===todayStr()?`<div class="calendar-now" style="top:${nowMinute}px"><i></i></div>`:''}</div>`;}).join('')}</div></div><p class="calendar-hint">Planned blocks show your schedule. ✓ Actual blocks show saved sessions at their recorded times. Click a block for details, or an empty hour to plan.</p>`;
   const scroll=wrap.querySelector('.calendar-scroll');if(scroll)scroll.scrollTop=oldScroll??Math.max(0,(days.includes(todayStr())?now.getHours()-1:8)*60);
 }
 function openCalendarSlot(date,hour){chooseScheduleDay(date);openAddTask();document.getElementById('task-date').value=date;document.getElementById('task-start').value=String(hour).padStart(2,'0')+':00';document.getElementById('task-end').value=String(hour).padStart(2,'0')+':30';syncTimeControls();}
@@ -971,6 +974,7 @@ function renderTicker() {
 // DASHBOARD
 // ═══════════════════════════════════════
 function updateDashboard() {
+  renderDailyRecap();renderBackupNudge();
   const today = todayStr();
   const dayTasks = state.tasks.filter(t => t.date === today && t.category !== 'break' && t.status !== 'rescheduled');
 
@@ -1329,6 +1333,7 @@ function workComparison(session) {
     label: !session.plannedMinutes ? 'No time target — recorded work only' : Math.abs(difference) < 1000 ? 'Right on your planned time' : `${durationLabel(Math.abs(difference))} ${difference > 0 ? 'over' : 'under'} your planned time` };
 }
 function renderWork() {
+  renderGlobalSession();
   const session = state.workSession;
   const picker = document.getElementById('work-picker');
   if (!picker) return;
@@ -1676,6 +1681,7 @@ function init() {
     if (state.workSession) {
       setText('work-elapsed', clockDuration(workElapsed(state.workSession)));
     }
+    renderGlobalSession();
   }, 1000);
   console.log('SlothMotivate ready.');
 }
@@ -1801,6 +1807,7 @@ function exportLocalWorkspace() {
   const url=URL.createObjectURL(blob), link=document.createElement('a');
   link.href=url; link.download=`slothmotivate-${todayStr()}.json`; link.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
+  state.lastBackupAt=Date.now();save();renderBackupNudge();showToast('Backup download requested. Keep the JSON file somewhere safe.');
 }
 
 function setPlannerDay(choice) {
@@ -1924,3 +1931,22 @@ async function addReminderImages(input){
 function isReminder(t){return t.kind==='reminder'||(!t.kind&&Boolean(t.links?.length||t.images?.length));}
 function addQuickTask(){const input=document.getElementById('quick-task-name'),name=input.value.trim();if(!name)return;state.todos.push({id:Math.max(Date.now(),...state.todos.map(t=>Number(t.id)||0))+1,kind:'task',name,notes:'',date:todayStr(),minutes:0,done:false,archived:false});save();input.value='';renderTaskList();}
 function renderTaskList(){const el=document.getElementById('tasks-action-list');if(!el)return;const tasks=state.todos.filter(t=>!isReminder(t)&&!t.archived);el.innerHTML=tasks.length?tasks.map(t=>`<article class="card todo-item"><div class="card-heading"><h3>${escHtml(t.name)}</h3><span class="small-pill">${t.done?'Completed':'To do'}</span></div><p>${escHtml(t.notes||'')}</p><div class="todo-actions">${!t.done?`<button class="btn btn-primary" onclick="startTodo(${t.id})">Start ↗</button>`:''}<button class="text-button" onclick="changeTodo(${t.id},'done')">${t.done?'Reopen':'Mark done'}</button><button class="text-button" onclick="changeTodo(${t.id},'archive')">Archive</button></div></article>`).join(''):'<div class="card todo-item"><p>No tasks yet. Add your next step above, or browse <a href="/reminders" data-page="reminders">Reminders</a> for inspiration.</p></div>';}
+
+function renderGlobalSession(){
+ const el=document.getElementById('global-session');if(!el)return;const session=state.workSession,focus=state.focus;
+ el.hidden=!session&&!focus.endAt;if(el.hidden)return;
+ setText('global-session-label',session?(session.endedAt?'REFLECTION WAITING':session.pausedAt?'PAUSED':'WORK IN PROGRESS'):'POMODORO');
+ setText('global-session-name',session?.taskName||({focus:'Focus',short:'Short break',long:'Long break'}[focusMode()]));
+ setText('global-session-time',session?clockDuration(workElapsed(session)):clockDuration(Math.max(0,focus.endAt-Date.now())));
+ setText('global-session-action',session?.endedAt?'Finish reflection ↗':'Open timer ↗');
+}
+function renderDailyRecap(){
+ const el=document.getElementById('daily-recap-content');if(!el)return;const date=todayStr(),m=TimeMetrics.daily(state,date),[start,end]=TimeMetrics.bounds(date);
+ const logs=state.workLogs.filter(l=>l.endedAt>start&&l.startedAt<end);const completed=logs.filter(l=>l.outcome==='done'&&l.endedAt>=start&&l.endedAt<end);
+ el.innerHTML=`<p>${m.done} of ${m.total} planned tasks completed · ${Math.round(m.workMs/60000)} min tracked work · ${Math.round(m.distractedMs/60000)} min reported distractions</p><h3>What you finished</h3>${completed.length?`<ul>${completed.map(l=>`<li><strong>${escHtml(l.taskName)}</strong> — ${escHtml(l.did||'Completed')}</li>`).join('')}</ul>`:'<p>No completed sessions saved today yet. Your next small step counts.</p>'}`;
+ document.getElementById('recap-improvement').value=state.dailyReviews?.[date]||'';
+}
+function saveRecapImprovement(){state.dailyReviews||={};state.dailyReviews[todayStr()]=document.getElementById('recap-improvement').value.trim();save();setText('recap-save-status','Saved for tomorrow.');}
+function backupDue(now=Date.now()){const hasData=state.tasks.length||state.todos.length||state.workLogs.length||state.journal.length||state.goals.length;return Boolean(hasData)&&now>=(state.backupSnoozedUntil||0)&&(!state.lastBackupAt||now-state.lastBackupAt>=7*86400000);}
+function renderBackupNudge(){const el=document.getElementById('backup-nudge');if(el)el.hidden=!backupDue();}
+function snoozeBackup(){state.backupSnoozedUntil=Date.now()+3*86400000;save();renderBackupNudge();}

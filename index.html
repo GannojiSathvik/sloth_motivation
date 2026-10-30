@@ -52,10 +52,11 @@
     <div class="breadcrumb">My workspace <span>/</span> <strong id="page-breadcrumb">Dashboard</strong></div>
     <div class="topbar-right"><div class="clock-display"><svg class="icon"><use href="#i-clock"/></svg><span id="live-time" class="live-time"></span></div><span class="topbar-divider"></span><a class="btn-ai" href="/account" data-page="account"><svg class="icon"><use href="#i-leaf"/></svg><span id="account-link-label">Local storage</span></a></div>
   </header>
+  <aside id="global-session" class="global-session" hidden aria-label="Current timer"><div><span id="global-session-label" class="eyebrow"></span><strong id="global-session-name"></strong></div><span id="global-session-time" class="session-clock"></span><a class="btn btn-ghost" href="/work" data-page="work" id="global-session-action">Open timer ↗</a></aside>
   <div class="quote-ticker" hidden><div id="quote-ticker-text"></div></div>
   <div class="tab-content">
     <section class="tab-panel active" id="tab-dashboard">
-      <div class="dashboard-heading"><div><div class="eyebrow"><span class="little-sun">☼</span> A FRESH CHANCE TO MAKE IT COUNT</div><h1>Small steps. <span>Real progress.</span></h1><p>You don’t have to do it all. Just the next right thing.</p></div><a class="btn btn-primary" href="/planner" data-page="planner"><svg class="icon"><use href="#i-spark"/></svg> Plan with AI</a></div>
+      <aside id="backup-nudge" class="backup-nudge" hidden><span>Your progress lives in this browser. Keep a backup somewhere safe.</span><button class="text-button" onclick="exportLocalWorkspace()">Download backup</button><button class="text-button" onclick="snoozeBackup()">Remind me later</button></aside><div class="dashboard-heading"><div><div class="eyebrow"><span class="little-sun">☼</span> A FRESH CHANCE TO MAKE IT COUNT</div><h1>Small steps. <span>Real progress.</span></h1><p>You don’t have to do it all. Just the next right thing.</p></div><a class="btn btn-primary" href="/planner" data-page="planner"><svg class="icon"><use href="#i-spark"/></svg> Plan with AI</a></div>
 
       <div id="carry-forward" class="card" hidden></div><div class="day-heading"><div class="section-label">Your day at a glance</div><span id="live-date" class="live-date"></span></div>
       <div class="metrics-grid">
@@ -72,7 +73,7 @@
       </div>
       <div id="overview-features" class="overview-features"></div>
       <footer class="dashboard-footer"><span><svg class="icon"><use href="#i-leaf"/></svg> Built for progress, at your pace.</span><button class="text-button" onclick="openJournalEntry()">Take a moment to reflect <span>↗</span></button></footer>
-    </section>
+    <div class="card daily-recap"><div class="card-heading"><h2>Your daily recap</h2><a href="/progress" data-page="progress" class="text-button">Full review ↗</a></div><div id="daily-recap-content"></div><label for="recap-improvement">One improvement for tomorrow</label><textarea class="input" id="recap-improvement" rows="2" maxlength="2000" placeholder="One small change you want to try"></textarea><button class="btn btn-ghost" onclick="saveRecapImprovement()">Save improvement</button><p id="recap-save-status" role="status"></p></div></section>
 
     <section class="tab-panel" id="tab-work"><div class="dashboard-heading"><div><div class="eyebrow">ONE THING AT A TIME</div><h1>Start small. <span>Learn as you go.</span></h1><p>Name your task, start the timer, and reflect when you finish.</p></div></div><div class="section-tabs"><button data-work-mode="stopwatch" aria-pressed="true" onclick="chooseWorkMode('stopwatch')">Stopwatch</button><button data-work-mode="pomodoro" aria-pressed="false" onclick="chooseWorkMode('pomodoro')">Pomodoro</button></div><div id="pomodoro-panel" hidden>
   <div class="pomodoro-clean">
@@ -145,7 +146,7 @@
           <input type="date" class="date-picker" id="timetable-date" aria-label="Timetable date" onchange="renderTimetable()" />
         </div>
       </div>
-<div class="schedule-date-nav"><button class="btn btn-ghost" onclick="shiftScheduleDay(-7)" aria-label="Previous period">←</button><button class="btn btn-ghost" onclick="chooseScheduleDay(todayStr())">Today</button><h2 id="calendar-range"></h2><div class="calendar-views"><button id="calendar-day" onclick="setCalendarView('day')">Day</button><button id="calendar-week" onclick="setCalendarView('week')" aria-pressed="true">Week</button></div><button class="btn btn-ghost" onclick="shiftScheduleDay(7)" aria-label="Next period">→</button></div><div class="timetable-wrap">
+<div class="schedule-date-nav"><button class="btn btn-ghost" onclick="shiftScheduleDay(-7)" aria-label="Previous period">←</button><button class="btn btn-ghost" onclick="chooseScheduleDay(todayStr())">Today</button><h2 id="calendar-range"></h2><div class="calendar-views"><button id="calendar-day" onclick="setCalendarView('day')">Day</button><button id="calendar-week" onclick="setCalendarView('week')" aria-pressed="true">Week</button></div><button class="btn btn-ghost" onclick="shiftScheduleDay(7)" aria-label="Next period">→</button></div><div class="calendar-views calendar-filters" aria-label="Timetable content"><button id="calendar-filter-both" aria-pressed="true" onclick="setCalendarContent('both')">Both</button><button id="calendar-filter-planned" onclick="setCalendarContent('planned')">Planned</button><button id="calendar-filter-actual" onclick="setCalendarContent('actual')">Actual</button></div><div class="timetable-wrap">
         <div class="time-axis" id="time-axis"></div>
         <div class="blocks-wrap" id="blocks-wrap"></div>
       </div>

@@ -298,3 +298,22 @@ test('recorded calendar sessions split at midnight and exclude invalid or unfini
  assert.equal(a.run("calendarRecordedWork('2026-10-30')[0].end"),'24:00');assert.equal(a.run("calendarRecordedWork('2026-10-31')[0].start"),'00:00');assert.equal(a.run("calendarRecordedWork('2026-10-31')[0].end"),'00:30');assert.equal(a.run("calendarRecordedWork('2026-11-01').length"),0);
  a.run("state.workLogs[0].endedAt=+new Date('2026-10-31T00:00:00')");assert.equal(a.run("calendarRecordedWork('2026-10-31').length"),0);
 });
+
+test('global session bar shows paused and finished work without advancing elapsed time',()=>{
+ const a=app();a.run('state.workSession={taskName:"DSA",startedAt:1000,pausedAt:61000,pausedMs:0};renderGlobalSession()');assert.equal(a.element('global-session').hidden,false);assert.equal(a.element('global-session-time').textContent,'00:01:00');assert.equal(a.element('global-session-label').textContent,'PAUSED');
+ a.run('state.workSession.endedAt=61000;renderGlobalSession()');assert.equal(a.element('global-session-action').textContent,'Finish reflection ↗');
+ a.run('state.workSession=null;renderGlobalSession()');assert.equal(a.element('global-session').hidden,true);
+});
+test('calendar content filters persist and do not mutate planned or recorded entries',()=>{
+ const a=app();a.run("state.tasks=[{id:1,name:'Planned item',date:'2026-10-30',start:'09:00',end:'10:00',status:'pending'}];state.workLogs=[{taskName:'Recorded item',startedAt:+new Date('2026-10-30T10:00:00'),endedAt:+new Date('2026-10-30T11:00:00')}]");a.element('timetable-date').value='2026-10-30';
+ a.run("setCalendarContent('actual');load()");assert.equal(a.run('state.calendarContent'),'actual');assert.match(a.element('blocks-wrap').innerHTML,/Recorded item/);assert.doesNotMatch(a.element('blocks-wrap').innerHTML,/Planned item/);
+ a.run("setCalendarContent('planned')");assert.match(a.element('blocks-wrap').innerHTML,/Planned item/);assert.doesNotMatch(a.element('blocks-wrap').innerHTML,/Recorded item/);
+ assert.equal(a.run('state.tasks.length'),1);assert.equal(a.run('state.workLogs.length'),1);
+});
+test('backup reminder waits a week after download and respects snoozing',()=>{
+ const a=app();assert.equal(a.run('backupDue()'),false);a.run("state.todos=[{id:1,name:'Keep this'}]");assert.equal(a.run('backupDue()'),true);a.run('snoozeBackup()');assert.equal(a.run('backupDue()'),false);assert.equal(a.run('backupDue(Date.now()+4*86400000)'),true);
+ a.run('state.backupSnoozedUntil=0;state.lastBackupAt=Date.now()');assert.equal(a.run('backupDue(Date.now()+6*86400000)'),false);assert.equal(a.run('backupDue(Date.now()+8*86400000)'),true);
+});
+test('daily recap reuses tracked-time accounting and saves improvement with daily reviews',()=>{
+ const a=app();a.run("state.workLogs=[{taskName:'DSA',did:'Solved arrays',startedAt:TimeMetrics.bounds(todayStr())[0]+3600000,endedAt:TimeMetrics.bounds(todayStr())[0]+7200000,pausedMs:600000,outcome:'done'}];renderDailyRecap()");assert.match(a.element('daily-recap-content').innerHTML,/50 min tracked work/);assert.match(a.element('daily-recap-content').innerHTML,/Solved arrays/);a.element('recap-improvement').value='Test edge cases';a.run('saveRecapImprovement();load()');assert.equal(a.run('state.dailyReviews[todayStr()]'),'Test edge cases');
+});

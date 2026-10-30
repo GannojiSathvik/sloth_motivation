@@ -148,3 +148,6 @@ Starting a saved reminder starts its stopwatch immediately. Finish & reflect rec
 Tasks & reminders supports searchable notes, up to 20 HTTP(S) links, and up to 3 compressed reference images per item. Images remain in browser storage and backups; no upload service is used. Reminder storage failures preserve the draft and existing records. Dates surface reminders inside the app, not as background notifications.
 
 Saved work sessions automatically appear in Timetable as Actual blocks alongside Planned blocks. These derive from work logs without creating extra tasks or changing metrics. Overnight sessions appear on both days. The block spans start to finish; its details show net tracked work, pauses, distractions, and the reflection.
+
+### Everyday overview
+An active-session bar appears across pages with elapsed work time, paused status, and a link back to Focus. Timetable remembers Planned / Actual / Both filtering. Dashboard includes a daily recap using the shared time-accounting rules and a saved improvement for tomorrow. A non-blocking backup reminder appears when there is saved data and no backup download has been requested in seven days; Remind me later snoozes it for three days. Downloads remain local JSON files.
