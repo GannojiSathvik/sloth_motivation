@@ -284,3 +284,5 @@ test('reminders persist images and links, reject unsafe links, and can be search
 test('reminder storage failure keeps the previous saved items and the draft',()=>{
  const a=app();a.element('todo-name').value='Draft';a.run("localStorage.setItem=()=>{throw new Error('quota')};saveTodo()");assert.equal(a.run('state.todos.length'),0);assert.equal(a.element('todo-name').value,'Draft');assert.match(a.element('todo-error').textContent,/storage is full/);
 });
+
+test('tasks and reminders have separate routes and lists without losing old resources',()=>{const a=app();a.run("state.todos=[{id:1,name:'Task',done:false},{id:2,name:'Reference',links:['https://example.com']},{id:3,name:'Note',kind:'reminder'}];renderTaskList();renderTodos()");assert.equal(a.run("pageFromPath('/reminders')"),'reminders');assert.match(a.element('tasks-action-list').innerHTML,/>Task</);assert.doesNotMatch(a.element('tasks-action-list').innerHTML,/Reference|Note/);assert.match(a.element('todo-list').innerHTML,/Reference/);assert.match(a.element('todo-list').innerHTML,/Note/);});

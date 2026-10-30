@@ -436,6 +436,7 @@ const PAGES = {
   quotes: { path: '/fuel', title: 'Daily fuel' },
   planner: { path: '/planner', title: 'Planner' },
   todos: { path: '/todos', title: 'Tasks' },
+  reminders: { path: '/reminders', title: 'Reminders' },
   account: { path: '/account', title: 'Local storage' },
 };
 
@@ -466,7 +467,8 @@ function renderPage(page, { focus = true } = {}) {
   if (page === 'timetable') renderTimetable();
   if (page === 'journal') renderJournal();
   if (page === 'planner') initPlanner();
-  if (page === 'todos') renderTodos();
+  if (page === 'todos') renderTaskList();
+  if (page === 'reminders') renderTodos();
   if (page === 'progress') { renderProgress(); renderDailyReview(); }
   if (page === 'quotes') renderFuelSlide();
   else if (fuelTimer) {
@@ -1682,7 +1684,7 @@ function saveTodo() {
   const links=document.getElementById('todo-links').value.split('\n').map(x=>x.trim()).filter(Boolean);
   if(links.length>20||links.some(x=>!reminderLink(x))){setText('todo-error','Use up to 20 valid http:// or https:// links.');return;}
   const before=JSON.stringify(state.todos);
-  const fields={name,date,minutes,notes:document.getElementById('todo-notes').value.trim(),links,images:[...reminderImages]};
+  const fields={kind:editingTodoId?(isReminder(state.todos.find(t=>t.id===editingTodoId)||{})?'reminder':'task'):'reminder',name,date,minutes,notes:document.getElementById('todo-notes').value.trim(),links,images:[...reminderImages]};
   const item=state.todos.find(t=>t.id===editingTodoId);
   if (item) Object.assign(item,fields);
   else state.todos.push({id:Math.max(Date.now(),...state.todos.map(t=>Number(t.id)||0))+1,...fields,done:false,archived:false});
@@ -1701,7 +1703,7 @@ function changeTodo(id,action) {
   if (action==='done') t.done=!t.done;
   if (action==='archive') t.archived=!t.archived;
   if (action==='tomorrow') { const d=new Date(); d.setDate(d.getDate()+1); t.date=localDate(d); }
-  save(); renderTodos(); renderReminderNudge();
+  save(); renderTodos(); renderTaskList(); renderReminderNudge();
 }
 function startTodo(id) {
   if (state.workSession) { showToast('Finish your current session first.'); return; }
@@ -1711,7 +1713,7 @@ function startTodo(id) {
   state.workMode='stopwatch'; save(); navigateToPage('work');
 }
 function suggestTodo() {
-  const all=sortedTodos(), due=all.filter(todoDue), pool=due.length?due:all;
+  const all=sortedTodos().filter(isReminder), due=all.filter(todoDue), pool=due.length?due:all;
   if (!pool.length) { setText('todo-suggestion-text','Your list is clear. Add something you want to do later.'); return; }
   const t=pool[Math.floor(Math.random()*pool.length)];
   document.getElementById('todo-suggestion-text').innerHTML=`<strong>${escHtml(t.name)}</strong> · ${t.minutes ? t.minutes+' min' : 'No time target'} <button class="text-button" onclick="startTodo(${t.id})">Start this ↗</button>`;
@@ -1719,7 +1721,7 @@ function suggestTodo() {
 function renderTodos() {
   const filter=document.getElementById('todo-filter').value||'open';
   const query=document.getElementById('todo-search').value.trim().toLowerCase();
-  let items=state.todos.filter(t=>filter==='archived'?t.archived:!t.archived&&(filter==='done'?t.done:!t.done&&(filter==='due'?todoDue(t):filter==='later'?!todoDue(t):true))).slice().sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
+  let items=state.todos.filter(isReminder).filter(t=>filter==='archived'?t.archived:!t.archived&&(filter==='done'?t.done:!t.done&&(filter==='due'?todoDue(t):filter==='later'?!todoDue(t):true))).slice().sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
   items=items.filter(t=>[t.name,t.notes,...(t.links||[])].join(' ').toLowerCase().includes(query));
   setText('todo-count',`${items.length} items`); setText('todo-suggestion-text','Pick something you’ve been meaning to do.');
   document.getElementById('todo-list').innerHTML=items.length?items.map(t=>`<article class="card todo-item"><div class="card-heading"><h3>${escHtml(t.name)}</h3><span class="small-pill">${t.done?'Completed':t.date?(todoDue(t)?'Due · ':'')+escHtml(t.date):'Someday'}</span></div><p>${escHtml(t.notes||'')}</p>${reminderResources(t)}<div class="todo-actions"><span>${t.minutes ? t.minutes+' min' : 'No time target'}</span>${!t.done&&!t.archived?`<button class="btn btn-primary" onclick="startTodo(${t.id})">Start ↗</button><button class="text-button" onclick="changeTodo(${t.id},'tomorrow')">Tomorrow</button>`:''}${!t.archived?`<button class="text-button" onclick="changeTodo(${t.id},'done')">${t.done?'Reopen':'Mark done'}</button>`:''}<button class="text-button" onclick="editTodo(${t.id})">Edit</button><button class="text-button" onclick="changeTodo(${t.id},'archive')">${t.archived?'Restore':'Archive'}</button></div></article>`).join(''):'<div class="card todo-item"><h3>A little breathing room.</h3><p>No items in this view. Save a task for later or try another view.</p></div>';
@@ -1727,7 +1729,7 @@ function renderTodos() {
 function renderReminderNudge() {
   const el=document.getElementById('today-reminders'); if (!el) return;
   const all=sortedTodos(),due=all.filter(todoDue),t=due[0]||all[0];
-  el.innerHTML=t?`<div><span class="eyebrow">${due.length?`${due.length} REMINDERS DUE`:'SAVED FOR LATER'}</span><strong>${escHtml(t.name)}</strong></div><button class="text-button" onclick="startTodo(${t.id})">Start ↗</button><a class="text-button" href="/todos" data-page="todos">See your list ↗</a>`:'<a class="text-button" href="/todos" data-page="todos">Something on your mind? Save it for later ↗</a>';
+  el.innerHTML=t?`<div><span class="eyebrow">${due.length?`${due.length} REMINDERS DUE`:'SAVED FOR LATER'}</span><strong>${escHtml(t.name)}</strong></div><button class="text-button" onclick="startTodo(${t.id})">Start ↗</button><a class="text-button" href="/reminders" data-page="reminders">See your reminders ↗</a>`:'<a class="text-button" href="/reminders" data-page="reminders">Something on your mind? Save it for later ↗</a>';
 }
 function reflectionDetails(log) {
   const worth={yes:'Worthwhile',partly:'Partly worthwhile',no:'Not worthwhile this time'}[log.worth];
@@ -1901,3 +1903,7 @@ async function addReminderImages(input){
   reminderImagesLoading=true;const version=reminderDraftVersion;
   try{const added=[];for(const file of files){const url=URL.createObjectURL(file);try{const img=new Image();img.src=url;await img.decode();const scale=Math.min(1,1000/Math.max(img.width,img.height));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);const data=canvas.toDataURL('image/webp',.75);if(data.length>500000)throw new Error('large');added.push(data);}finally{URL.revokeObjectURL(url);}}if(version===reminderDraftVersion){reminderImages.push(...added);renderReminderImages();}}catch{setText('todo-error','Could not save that image. Try a smaller image.');}finally{reminderImagesLoading=false;input.value='';}
 }
+
+function isReminder(t){return t.kind==='reminder'||(!t.kind&&Boolean(t.links?.length||t.images?.length));}
+function addQuickTask(){const input=document.getElementById('quick-task-name'),name=input.value.trim();if(!name)return;state.todos.push({id:Math.max(Date.now(),...state.todos.map(t=>Number(t.id)||0))+1,kind:'task',name,notes:'',date:todayStr(),minutes:0,done:false,archived:false});save();input.value='';renderTaskList();}
+function renderTaskList(){const el=document.getElementById('tasks-action-list');if(!el)return;const tasks=state.todos.filter(t=>!isReminder(t)&&!t.archived);el.innerHTML=tasks.length?tasks.map(t=>`<article class="card todo-item"><div class="card-heading"><h3>${escHtml(t.name)}</h3><span class="small-pill">${t.done?'Completed':'To do'}</span></div><p>${escHtml(t.notes||'')}</p><div class="todo-actions">${!t.done?`<button class="btn btn-primary" onclick="startTodo(${t.id})">Start ↗</button>`:''}<button class="text-button" onclick="changeTodo(${t.id},'done')">${t.done?'Reopen':'Mark done'}</button><button class="text-button" onclick="changeTodo(${t.id},'archive')">Archive</button></div></article>`).join(''):'<div class="card todo-item"><p>No tasks yet. Add your next step above, or browse <a href="/reminders" data-page="reminders">Reminders</a> for inspiration.</p></div>';}

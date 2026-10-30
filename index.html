@@ -33,7 +33,8 @@
   <div class="workspace-label">YOUR WORKSPACE</div>
   <nav class="sidebar-nav" aria-label="Main navigation">
     <a class="nav-item active" data-page="dashboard" href="/"><svg class="icon"><use href="#i-grid"/></svg><span>Dashboard</span><span class="nav-active-dot"></span></a>
-    <a class="nav-item" data-page="todos" href="/todos"><svg class="icon"><use href="#i-book"/></svg><span>Tasks & reminders</span></a>
+    <a class="nav-item" data-page="todos" href="/todos"><svg class="icon"><use href="#i-book"/></svg><span>Tasks</span></a>
+    <a class="nav-item" data-page="reminders" href="/reminders"><svg class="icon"><use href="#i-book"/></svg><span>Reminders</span></a>
     <a class="nav-item" data-page="work" href="/work"><svg class="icon"><use href="#i-clock"/></svg><span>Focus</span></a>
     <a class="nav-item" data-page="timetable" href="/timetable"><svg class="icon"><use href="#i-calendar"/></svg><span>Timetable</span></a>
     <a class="nav-item" data-page="planner" href="/planner"><svg class="icon"><use href="#i-spark"/></svg><span>Planner</span></a>
@@ -118,8 +119,9 @@
       </div>
       </div>
     </section>
-    <section class="tab-panel" id="tab-todos">
-      <div class="page-header"><p class="eyebrow">MAKE ROOM IN YOUR HEAD</p><h1>Remember it. Do it later.</h1><p>Save a task now. Come back when you’re ready.</p></div>
+    <section class="tab-panel" id="tab-todos"><div class="page-header"><p class="eyebrow">ONE STEP AT A TIME</p><h1>Your tasks.</h1><p>Choose what to work on. Start tracks your time automatically.</p></div><form class="card" onsubmit="event.preventDefault();addQuickTask()"><label for="quick-task-name">What do you want to do?</label><div class="account-buttons"><input class="input" id="quick-task-name" required maxlength="200" placeholder="Practice DSA…"/><button class="btn btn-primary">Add task</button></div></form><div id="tasks-action-list" class="todo-list"></div></section>
+    <section class="tab-panel" id="tab-reminders">
+      <div class="page-header"><p class="eyebrow">MAKE ROOM IN YOUR HEAD</p><h1>Remember it. Do it later.</h1><p>Keep images, links, and ideas here. Come back when you need inspiration.</p></div>
       <div class="todo-layout"><form class="card todo-capture" onsubmit="event.preventDefault(); saveTodo()">
         <h2 id="todo-form-title">Save a thought</h2><label for="todo-name">What do you want to do?</label><input class="input" id="todo-name" required maxlength="200" placeholder="Practice arrays, read a chapter…"/>
         <label for="todo-notes">Notes (optional)</label><textarea class="input" id="todo-notes" rows="3" maxlength="2000" placeholder="Where to start or what to prepare"></textarea>
@@ -127,7 +129,7 @@
         <label for="todo-images">Save images</label><input class="input" id="todo-images" type="file" accept="image/png,image/jpeg,image/webp" multiple onchange="addReminderImages(this)"/><p class="todo-help">Up to 3 images per reminder. Saved only in this browser.</p><div id="todo-image-preview" class="reminder-images"></div><p id="todo-error" role="alert"></p>
         <label for="todo-date">Remind me on (optional)</label><input class="input" id="todo-date" type="date"/>
         <label for="todo-minutes">Time target (optional)</label><input class="input" id="todo-minutes" type="number" min="1" max="1440" placeholder="No time limit"/>
-        <div class="account-buttons"><button class="btn btn-primary" type="submit">Save task</button><button class="btn btn-ghost" id="todo-cancel" type="button" hidden onclick="resetTodoForm()">Cancel edit</button></div>
+        <div class="account-buttons"><button class="btn btn-primary" type="submit">Save reminder</button><button class="btn btn-ghost" id="todo-cancel" type="button" hidden onclick="resetTodoForm()">Cancel edit</button></div>
         <p class="todo-help">Reminders appear in the app when due. No notifications are sent while the app is closed.</p></form>
         <div><div class="card todo-suggestion"><h2>Not sure what to do?</h2><p id="todo-suggestion-text">Pick something you’ve been meaning to do.</p><button class="btn btn-ghost" onclick="suggestTodo()">Pick a task for me ↗</button></div>
         <label for="todo-search">Find something to revisit</label><input class="input" id="todo-search" type="search" placeholder="Search your notes, tasks, and links" oninput="renderTodos()"/><div class="todo-toolbar"><label for="todo-filter">Show</label><select class="input" id="todo-filter" onchange="renderTodos()"><option value="open">To do</option><option value="due">Due now</option><option value="later">Later & someday</option><option value="done">Completed</option><option value="archived">Archived</option></select><span id="todo-count" role="status"></span></div><div id="todo-list" class="todo-list"></div></div></div>

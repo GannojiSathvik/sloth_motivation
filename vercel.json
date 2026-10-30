@@ -40,6 +40,10 @@
     {
       "source": "/work",
       "destination": "/index.html"
+    },
+    {
+      "source": "/reminders",
+      "destination": "/index.html"
     }
   ]
 }
