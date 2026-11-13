@@ -379,12 +379,19 @@ let state = {
   currentJournalRating: 3,
 };
 
+const emptyWorkspace=JSON.stringify(state);
+let applyingCloudState=false;
 // ═══════════════════════════════════════
 // PERSISTENCE
 // ═══════════════════════════════════════
 function save() {
-  localStorage.setItem(activeStorageKey, JSON.stringify(state));
+  const serialized=JSON.stringify(state),changed=localStorage.getItem(activeStorageKey)!==serialized;
+  localStorage.setItem(activeStorageKey, serialized);
+  if(applyingCloudState||!changed)return;
+  if(activeStorageKey.startsWith('sm_state:'))localStorage.setItem('sm_cloud_dirty:'+activeStorageKey.slice(9),'true');
+  window.cloud?.queueSave();
 }
+
 
 function load() {
   const selected=localStorage.getItem('sm_local_workspace');
@@ -437,7 +444,7 @@ const PAGES = {
   planner: { path: '/planner', title: 'Planner' },
   todos: { path: '/todos', title: 'Tasks' },
   reminders: { path: '/reminders', title: 'Reminders' },
-  account: { path: '/account', title: 'Local storage' },
+  account: { path: '/account', title: 'Account & sync' },
 };
 
 function pageFromPath(pathname) {
@@ -459,6 +466,7 @@ function renderPage(page, { focus = true } = {}) {
     else link.removeAttribute('aria-current');
   });
   renderGlobalSession();
+  const more=document.querySelector('.nav-more');if(more&&['planner','progress','quotes','journal'].includes(page))more.open=true;
   setText('page-breadcrumb', PAGES[page].title);
   document.title = `${PAGES[page].title} — SlothMotivate`;
 
@@ -1677,6 +1685,7 @@ function init() {
   }
 
   setupRouting();
+  window.cloud?.init({getState:()=>state,switchAccount:switchCloudAccount,hasActiveWork:()=>Boolean(state.workSession||state.focus.endAt),isEditing:()=>Boolean(document.querySelector('.modal-overlay.open')||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))});
   setInterval(() => {
     if (state.workSession) {
       setText('work-elapsed', clockDuration(workElapsed(state.workSession)));
@@ -1790,6 +1799,7 @@ function renderLocalStorage() {
   select.value=activeStorageKey;
 }
 function useLocalWorkspace() {
+  if(window.cloud?.currentUser?.()){showToast('Sign out before opening a local workspace.');return;}
   if (state.workSession || state.focus.endAt) { showToast('Finish your work session and pause the Pomodoro timer before switching.'); return; }
   const key=document.getElementById('local-workspace').value;
   if (key!=='sm_state' && !key.startsWith('sm_state:')) return;
@@ -1948,5 +1958,24 @@ function renderDailyRecap(){
 }
 function saveRecapImprovement(){state.dailyReviews||={};state.dailyReviews[todayStr()]=document.getElementById('recap-improvement').value.trim();save();setText('recap-save-status','Saved for tomorrow.');}
 function backupDue(now=Date.now()){const hasData=state.tasks.length||state.todos.length||state.workLogs.length||state.journal.length||state.goals.length;return Boolean(hasData)&&now>=(state.backupSnoozedUntil||0)&&(!state.lastBackupAt||now-state.lastBackupAt>=7*86400000);}
-function renderBackupNudge(){const el=document.getElementById('backup-nudge');if(el)el.hidden=!backupDue();}
+function renderBackupNudge(){const el=document.getElementById('backup-nudge');if(el)el.hidden=Boolean(window.cloud?.currentUser?.())||!backupDue();}
 function snoozeBackup(){state.backupSnoozedUntil=Date.now()+3*86400000;save();renderBackupNudge();}
+
+function switchCloudAccount(owner, remote){
+  const key=owner?'sm_state:'+owner:'sm_state';
+  let local=null;try{local=JSON.parse(localStorage.getItem(key)||'null');}catch{}
+  let data=remote||local;
+  if(owner&&!data&&localStorage.getItem('sm_import_guest_once')==='true'){
+    try{data=JSON.parse(localStorage.getItem('sm_state')||'null');}catch{}
+  }
+  if(owner)localStorage.removeItem('sm_import_guest_once');
+  applyingCloudState=true;
+  const defaults=JSON.parse(emptyWorkspace);state={...defaults,...(data||{})};
+  for(const field of ['tasks','todos','journal','goals','workLogs','focusSessions'])if(!Array.isArray(state[field]))state[field]=[];
+  state.focus={...defaults.focus,...state.focus};
+  state.plannerPreferences||={};state.history||={};state.dailyReviews||={};
+  activeStorageKey=key;localStorage.setItem('sm_local_workspace',key);
+  localStorage.setItem(key,JSON.stringify(state));
+  try{updateDashboard();renderWork();renderTodos();renderTaskList();renderTimetable();renderJournal();renderDailyReview();}finally{applyingCloudState=false;}
+}
+function downloadGuestBackup(){const raw=localStorage.getItem('sm_state');if(!raw){showToast('No guest data saved here.');return;}const url=URL.createObjectURL(new Blob([raw],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='slothmotivate-guest-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}

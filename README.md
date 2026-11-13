@@ -1,4 +1,4 @@
-> Current mode: local browser storage. Supabase sync and sign-in are paused; existing cloud data is untouched. Download backups from Local storage. Gemini works in the local Node app; the public hosted planner is paused until an independent abuse-protection mechanism is configured. The cloud setup notes below are retained for future re-enablement.
+> Google sign-in and account sync are enabled in the app code. A reachable Supabase project with Google configured and the private workspace table is required. Guest mode remains available. Gemini works locally; hosted AI planning remains paused independently of authentication.
 
 # 🦥 SlothMotivate
 
@@ -60,18 +60,19 @@ Point your favorite web browser to:
 | Page | Route | What you'll find |
 | --- | --- | --- |
 | **Dashboard** | `/` | Planned versus recorded time, outcomes, carry-forward, next actions |
-| **Tasks** | `/todos` | To-dos, reminder dates, later items |
+| **Tasks** | `/todos` | Actionable tasks and automatic session starts |
+| **Reminders** | `/reminders` | Saved notes, images, links, and reminder dates |
 | **Focus** | `/work` | Stopwatch, task-linked Pomodoro, finish and reflect |
 | **Planner** | `/planner` | AI previews, plain-language revisions, available windows, replanning |
-| Timetable (Planner subpage) | `/timetable` | Week selector and editable AM/PM agenda |
+| **Timetable** | `/timetable` | Planned and actual work, day/week calendar |
 | **Progress** | `/progress` | Daily review, saved next-day improvement, trends and goals |
 | Reflections (Progress subpage) | `/journal` | Work logs and journal entries |
 | Daily fuel (Progress subpage) | `/fuel` | Quotes |
-| Local storage | `/account` | Backup and previously cached workspaces |
+| Account & sync | `/account` | Google sign-in, sync status, conflict recovery, and backups |
 
 ---
 
-## Archived cloud storage setup (not active in the current app)
+## Google sign-in and private cloud storage
 
 1. Choose a Supabase project and apply `supabase/schema.sql` once. The table is named `sloth_workspaces` to keep this app separate from other apps.
 2. Add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` to `.env`, then restart the server. Use a publishable key, never a service-role key.
@@ -85,7 +86,7 @@ The build publishes only browser assets in `dist/`. The `/api/config` and `/api/
 
 The hosted AI planner currently returns an explicit paused message. Adding environment variables alone does not enable it. The local planner runs without sign-in on loopback only. Public AI requires a separate abuse-protection design before re-enablement.
 
-When you generate a plan, your planning brief, selected goals, and existing commitments for that date are sent to Gemini. Work reflections stay in local browser storage and are not sent to Gemini. Plans remain drafts until you accept them. Time tracking measures elapsed time between your clicks, not keyboard activity or proof of work.
+When you generate a plan, your planning brief, selected goals, and existing commitments for that date are sent to Gemini. Work reflections are cached locally and sync to your private account when signed in. They are not sent to Gemini. Plans remain drafts until you accept them. Time tracking measures elapsed time between your clicks, not keyboard activity or proof of work.
 
 ## 🧪 Testing
 
@@ -145,9 +146,21 @@ The sidebar includes direct Timetable and Daily Fuel links. Timetable offers day
 ### Learning sessions and reminders
 Starting a saved reminder starts its stopwatch immediately. Finish & reflect records what you did, what you learned, focus level, a 1–5 session rating, mistakes, and your next improvement. Pomodoro opens the same reflection when its focus round completes.
 
-Tasks & reminders supports searchable notes, up to 20 HTTP(S) links, and up to 3 compressed reference images per item. Images remain in browser storage and backups; no upload service is used. Reminder storage failures preserve the draft and existing records. Dates surface reminders inside the app, not as background notifications.
+Tasks & reminders supports searchable notes, up to 20 HTTP(S) links, and up to 3 compressed reference images per item. Images remain in browser storage and backups and sync inside your private workspace when signed in. Reminder storage failures preserve the draft and existing records. Dates surface reminders inside the app, not as background notifications.
 
 Saved work sessions automatically appear in Timetable as Actual blocks alongside Planned blocks. These derive from work logs without creating extra tasks or changing metrics. Overnight sessions appear on both days. The block spans start to finish; its details show net tracked work, pauses, distractions, and the reflection.
 
 ### Everyday overview
 An active-session bar appears across pages with elapsed work time, paused status, and a link back to Focus. Timetable remembers Planned / Actual / Both filtering. Dashboard includes a daily recap using the shared time-accounting rules and a saved improvement for tomorrow. A non-blocking backup reminder appears when there is saved data and no backup download has been requested in seven days; Remind me later snoozes it for three days. Downloads remain local JSON files.
+
+### Sync behavior and setup checks
+
+Use the same Google account across devices. The app fetches changes on opening, window focus, reconnection, and every 15 seconds while visible. Tasks, reminders (including images), work logs, daily reviews, preferences, and the active session are included. Version-checked updates stop one device from silently replacing another device’s changes. Conflicts require downloading the local copy and loading the latest cloud version; the app also creates a local recovery copy.
+
+A first sign-in to an empty account copies guest data from that browser. An existing account loads its cloud workspace; previous guest data remains downloadable in Account → Backups. It is not silently merged into an existing cloud account.
+
+Configure Google’s authorized redirect URI as `https://<project-ref>.supabase.co/auth/v1/callback`. Configure Supabase’s allowed redirects to include `https://slothmotivate.vercel.app/account`, `http://127.0.0.1:4174/account`, and `http://localhost:4174/account` as needed. Set the public project URL and publishable key in both local `.env` and Vercel environment settings, then redeploy. Never expose a service-role key. Confirm owner-scoped RLS policies from `supabase/schema.sql` before using the table.
+
+Verification on 2026-11-13: local automated checks pass, but the previously configured project `tpxutrqowbufwztpzori` returned DNS ENOTFOUND and the connected Supabase account could not access it. Live Google sign-in, database policies, and cross-device saving still require verification against the restored or replacement project. No cloud data or schema was changed in this update.
+
+The core navigation is Dashboard, Tasks, Reminders, Focus, and Timetable. Optional Planner, Progress, and Daily Fuel pages are under More. Detailed accounting and optional reflection fields are collapsed by default.

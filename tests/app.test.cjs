@@ -25,7 +25,7 @@ function app() {
   const context = vm.createContext({
     console, Date, Math, URL, AbortController,
     document: { getElementById: element, querySelectorAll: () => [], querySelector: () => null, addEventListener() {}, createElement: () => element(Symbol()), body: { style: {} } },
-    window: browserWindow, localStorage: { setItem: (k,v) => storage.set(k,v), getItem: k => storage.get(k) ?? null },
+    window: browserWindow, localStorage: { setItem: (k,v) => storage.set(k,v), getItem: k => storage.get(k) ?? null, removeItem:k=>storage.delete(k) },
     setTimeout: () => 1, clearTimeout() {}, setInterval() {}, alert() {}
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../metrics.js'), 'utf8'), context);
@@ -212,9 +212,9 @@ test('fourth completed focus offers long break and mode changes cannot discard r
   assert.equal(a.run('focusMode()'),'long'); assert.equal(a.run('state.focus.remaining'),900);
   a.run('toggleFocus(); resetFocus()'); assert.equal(a.run('state.focus.rounds'),4);
 });
-test('local-only HTML loads no Supabase client or account sign-in form', () => {
+test('HTML loads the bundled auth client and Google sign-in form', () => {
   const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
-  assert.ok(!html.includes('src="/assets/cloud.js"')); assert.ok(!html.includes('account-google'));
+  assert.ok(html.includes('src="/assets/cloud.js"')); assert.ok(html.includes('account-google'));
 });
 
 
@@ -316,4 +316,10 @@ test('backup reminder waits a week after download and respects snoozing',()=>{
 });
 test('daily recap reuses tracked-time accounting and saves improvement with daily reviews',()=>{
  const a=app();a.run("state.workLogs=[{taskName:'DSA',did:'Solved arrays',startedAt:TimeMetrics.bounds(todayStr())[0]+3600000,endedAt:TimeMetrics.bounds(todayStr())[0]+7200000,pausedMs:600000,outcome:'done'}];renderDailyRecap()");assert.match(a.element('daily-recap-content').innerHTML,/50 min tracked work/);assert.match(a.element('daily-recap-content').innerHTML,/Solved arrays/);a.element('recap-improvement').value='Test edge cases';a.run('saveRecapImprovement();load()');assert.equal(a.run('state.dailyReviews[todayStr()]'),'Test edge cases');
+});
+
+test('cloud hydration isolates accounts, keeps guest data, and does not queue another upload',()=>{
+ const a=app();a.run("var uploads=0;window.cloud={queueSave:()=>uploads++};state.todos=[{id:1,name:'Guest reminder'}];save()");a.storage.set('sm_import_guest_once','true');a.run("switchCloudAccount('alice',null)");assert.equal(a.run('state.todos[0].name'),'Guest reminder');assert.ok(a.storage.get('sm_state').includes('Guest reminder'));const before=a.run('uploads');
+ a.run("switchCloudAccount('bob',{tasks:[{id:2,name:'Bobs task',date:todayStr(),start:'09:00',end:'10:00',status:'pending'}],dailyReviews:{today:'Bobs review'}})");assert.equal(a.run('state.todos.length'),0);assert.equal(a.run('state.workSession'),null);assert.equal(a.run('uploads'),before);assert.equal(a.run('state.dailyReviews.today'),'Bobs review');
+ a.run('switchCloudAccount(null,null)');assert.equal(a.run('state.todos[0].name'),'Guest reminder');assert.equal(a.run('state.tasks.length'),0);
 });

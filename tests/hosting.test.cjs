@@ -11,6 +11,8 @@ test('local APIs keep server secrets private and reject cross-site planning', as
     const config = await (await fetch(`${url}/api/config`)).text();
     assert.ok(!config.includes('private-test-key'));
     assert.equal(JSON.parse(config).geminiConfigured, true);
+    assert.equal(JSON.parse(config).supabaseUrl,'https://example.supabase.co');
+    assert.equal(JSON.parse(config).supabasePublishableKey,'public-test-key');
     for (const route of ['/.env', '/planner.js', '/cloud.js', '/package.json']) assert.equal((await fetch(url + route)).status, 404);
     assert.equal((await fetch(`${url}/api/plan`, { method: 'POST', headers: { Origin: 'https://other.example', 'Content-Type': 'application/json' }, body: '{}' })).status, 403);
     assert.equal((await fetch(`${url}/api/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 200);
@@ -40,3 +42,5 @@ test('deployment publishes only browser files and keeps API routes separate', ()
   assert.ok(!fs.existsSync('dist/.env'));
   assert.ok(!fs.existsSync('dist/planner.js'));
 });
+
+test('hosted config exposes only public Supabase configuration',async()=>{const before={url:process.env.SUPABASE_URL,key:process.env.SUPABASE_PUBLISHABLE_KEY};process.env.SUPABASE_URL='https://example.supabase.co';process.env.SUPABASE_PUBLISHABLE_KEY='public';try{const {GET}=await import('../api/config.mjs');const value=await (await GET()).json();assert.equal(value.supabaseUrl,'https://example.supabase.co');assert.equal(value.supabasePublishableKey,'public');assert.equal(value.storageMode,'cloud');assert.ok(!('GEMINI_API_KEY' in value));}finally{if(before.url===undefined)delete process.env.SUPABASE_URL;else process.env.SUPABASE_URL=before.url;if(before.key===undefined)delete process.env.SUPABASE_PUBLISHABLE_KEY;else process.env.SUPABASE_PUBLISHABLE_KEY=before.key;}});
