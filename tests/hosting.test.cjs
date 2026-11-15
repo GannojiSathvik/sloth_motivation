@@ -44,3 +44,10 @@ test('deployment publishes only browser files and keeps API routes separate', ()
 });
 
 test('hosted config exposes only public Supabase configuration',async()=>{const before={url:process.env.SUPABASE_URL,key:process.env.SUPABASE_PUBLISHABLE_KEY};process.env.SUPABASE_URL='https://example.supabase.co';process.env.SUPABASE_PUBLISHABLE_KEY='public';try{const {GET}=await import('../api/config.mjs');const value=await (await GET()).json();assert.equal(value.supabaseUrl,'https://example.supabase.co');assert.equal(value.supabasePublishableKey,'public');assert.equal(value.storageMode,'cloud');assert.ok(!('GEMINI_API_KEY' in value));}finally{if(before.url===undefined)delete process.env.SUPABASE_URL;else process.env.SUPABASE_URL=before.url;if(before.key===undefined)delete process.env.SUPABASE_PUBLISHABLE_KEY;else process.env.SUPABASE_PUBLISHABLE_KEY=before.key;}});
+
+test('production Google login has public project configuration without Vercel env variables',async()=>{
+ const names=['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'];
+ const previous=names.map(name=>process.env[name]);names.forEach(name=>delete process.env[name]);
+ try {const {GET}=await import('../api/config.mjs');const c=await GET().json();assert.equal(c.supabaseUrl,'https://tpxutrqowbufwztpzori.supabase.co');assert.match(c.supabasePublishableKey,/^sb_publishable_/);}
+ finally{names.forEach((name,i)=>{if(previous[i]===undefined)delete process.env[name];else process.env[name]=previous[i];});}
+});
