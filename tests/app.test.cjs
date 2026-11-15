@@ -323,3 +323,10 @@ test('cloud hydration isolates accounts, keeps guest data, and does not queue an
  a.run("switchCloudAccount('bob',{tasks:[{id:2,name:'Bobs task',date:todayStr(),start:'09:00',end:'10:00',status:'pending'}],dailyReviews:{today:'Bobs review'}})");assert.equal(a.run('state.todos.length'),0);assert.equal(a.run('state.workSession'),null);assert.equal(a.run('uploads'),before);assert.equal(a.run('state.dailyReviews.today'),'Bobs review');
  a.run('switchCloudAccount(null,null)');assert.equal(a.run('state.todos[0].name'),'Guest reminder');assert.equal(a.run('state.tasks.length'),0);
 });
+
+test('current task without optional links renders at any time of day',()=>{
+ const a=app();
+ a.run("var RealDate=Date;Date=class extends RealDate{constructor(...args){super(...(args.length?args:['2026-11-15T09:30:00']))}};state.tasks=[{id:9,name:'Practice DSA',date:todayStr(),start:'09:00',end:'10:00',status:'pending'}];updateCurrentTask()");
+ assert.equal(a.element('current-task-title').textContent,'Practice DSA');
+ assert.equal(a.element('current-links').innerHTML,'');
+});

@@ -86,3 +86,13 @@ test('successful save marks the current version clean and includes reviews',asyn
 test('a rejected version update preserves local changes for explicit recovery',async()=>{
  const c=cloud();c.run("userId='owner';ready=true;version=1;client={from:()=>({update:()=>({eq:()=>({eq:()=>({select:()=>({single:async()=>({error:{code:'PGRST116'}})})})})})})};queueSave()");await c.run('syncNow()');assert.equal(c.run('conflict'),true);assert.equal(c.storage.get('sm_cloud_dirty:owner'),'true');assert.equal(c.run('version'),1);
 });
+
+test('explicit cloud reload preserves work started while the request was pending',async()=>{
+ const c=cloud();c.run("userId='owner';ready=true;version=1;var loaded=false,release;hooks.switchAccount=()=>{loaded=true};client={from:()=>({select:()=>({eq:()=>({single:()=>new Promise(resolve=>{release=resolve})})})})}");
+ const pull=c.run('reloadCloud()');c.run("hooks.hasActiveWork=()=>true;release({data:{version:2,data:{tasks:[]}}})");await pull;
+ assert.equal(c.run('loaded'),false);assert.equal(c.run('version'),1);
+});
+test('explicit cloud reload reports network failure without discarding local data',async()=>{
+ const c=cloud();c.run("userId='owner';ready=true;version=1;client={from:()=>{throw new Error('offline')}}");
+ await c.run('reloadCloud()');assert.equal(c.run('ready'),true);assert.match(c.element('cloud-status').textContent,/Cloud unavailable/);
+});

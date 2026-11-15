@@ -112,9 +112,15 @@ async function syncNow() {
 async function reloadCloud() {
   if (!userId || !client || syncing) return;
   if (hooks.hasActiveWork()) { status('Saved locally', 'Finish and save your current work session before loading another version.'); return; }
-  const owner = userId;
-  const { data, error } = await client.from(TABLE).select('data, version').eq('user_id', owner).single();
-  if (owner !== userId) return;
+  const owner = userId, attempt = hydration, initial = JSON.stringify(snapshot());
+  let data, error;
+  try { ({ data, error } = await client.from(TABLE).select('data, version').eq('user_id', owner).single()); }
+  catch (cause) { error = cause; }
+  if (owner !== userId || attempt !== hydration) return;
+  if (syncing || hooks.hasActiveWork() || initial !== JSON.stringify(snapshot())) {
+    status('Saved locally', 'Your work changed while loading. Your changes are safe. Finish your task and try again.');
+    return;
+  }
   if (error) { status('Cloud unavailable', 'Could not load the latest version. Your local work is untouched.'); return; }
   localStorage.setItem(`sm_backup:${userId}:${Date.now()}`, JSON.stringify(hooks.getState()));
   ready = false;

@@ -1050,7 +1050,7 @@ function updateCurrentTask() {
     if (titleEl) titleEl.textContent = active.name;
     if (descEl)  descEl.textContent  = active.desc || 'Focus up. You got this.';
     if (pillEl)  pillEl.textContent  = `${active.start} – ${active.end} · ${active.name}`;
-    if (linksEl) linksEl.innerHTML = active.links.filter(l => /^https?:\/\//i.test(l)).map(l => `<a href="${escAttr(l)}" target="_blank" rel="noopener noreferrer">${escHtml(shortUrl(l))} ↗</a>`).join('');
+    if (linksEl) linksEl.innerHTML = (Array.isArray(active.links) ? active.links : []).filter(l => /^https?:\/\//i.test(l)).map(l => `<a href="${escAttr(l)}" target="_blank" rel="noopener noreferrer">${escHtml(shortUrl(l))} ↗</a>`).join('');
     window._activeTaskId = active.id;
   } else {
     if (titleEl) titleEl.textContent = 'One thing at a time.';
